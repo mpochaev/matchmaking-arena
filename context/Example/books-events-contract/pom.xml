@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+        Контракт доменных событий — чистая Java-библиотека (.jar).
+        Не зависит от Spring и Jackson — только Java records и sealed interfaces.
+        Используется двумя сторонами: publisher (demo-rest) и consumer (audit-service).
+    -->
+
+    <groupId>edu.rutmiit.demo</groupId>
+    <artifactId>books-events-contract</artifactId>
+    <version>1.0</version>
+    <name>books-events-contract</name>
+    <description>Контракт доменных событий для асинхронной коммуникации между сервисами</description>
+
+    <properties>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <!-- Зависимостей нет: контракт событий — чистые Java records, без фреймворков -->
+
+</project>

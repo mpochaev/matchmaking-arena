@@ -1,0 +1,51 @@
+// Контракт gRPC-сервиса аналитики книг
+//
+// Определяет сервис BookAnalytics с одним RPC-методом AnalyzeBook.
+// Из этого файла protoc + protoc-gen-grpc-java генерируют:
+// Классы сообщений - AnalyzeBookRequest, BookAnalysisResponse
+// Серверный базовый класс BookAnalyticsGrpc.BookAnalyticsImplBase
+// Клиентские стабы BookAnalyticsGrpc.BookAnalyticsBlockingStub
+
+syntax = "proto3";
+
+// Java-пакет для сгенерированных классов
+option java_package = "edu.rutmiit.demo.grpc";
+
+// Все сгенерированные классы будут в отдельных файлах (не во вложенных классах)
+option java_multiple_files = true;
+
+// Пакет proto (для именования в других .proto файлах при импорте)
+package bookanalytics;
+
+// Сервисы
+// Unary RPC - один запрос это один ответ (типа аналог REST GET/POST)
+service BookAnalytics {
+
+    // Анализирует книгу и возвращает вычисленные метрики
+    rpc AnalyzeBook (AnalyzeBookRequest) returns (BookAnalysisResponse);
+}
+
+// Сообщения
+// В proto3 все поля опциональны по умолчанию (zero-value = не задано).
+// Номера полей (1, 2, 3...) используются в бинарном формате —
+// они не должны меняться после релиза
+// чтобы не нарушить совместимость
+
+// Запрос на анализ книги — данные, необходимые для вычисления метрик.
+message AnalyzeBookRequest {
+    int64  book_id        = 1;  // ID книги в системе
+    string title          = 2;  // Название книги
+    string genre          = 3;  // Жанр (Роман, Поэма, Пьеса...)
+    int32  published_year = 4;  // Год публикации
+    string language       = 5;  // Язык (ru, en...)
+    string author_name    = 6;  // Имя автора (для контекста анализа)
+}
+
+// Ответ с результатами анализа — вычисленные метрики книги.
+message BookAnalysisResponse {
+    int64  book_id                    = 1;  // ID книги (echo back)
+    int32  estimated_reading_minutes  = 2;  // Оценка времени чтения (в минутах)
+    string difficulty_level           = 3;  // Уровень сложности: EASY, MEDIUM, HARD, CLASSIC
+    double recommendation_score       = 4;  // Рекомендательный балл (0.0 — 10.0)
+    string era_classification         = 5;  // Эпоха: ANCIENT, CLASSICAL, MODERN, CONTEMPORARY
+}

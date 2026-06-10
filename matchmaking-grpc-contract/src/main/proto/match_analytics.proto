@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package matchanalytics;
+
+option java_multiple_files = true;
+option java_package = "edu.rutmiit.demo.matchmakinggrpc";
+
+// Простой gRPC-сервис для расчета рейтинга после матча.
+// Унарный RPC. Один запрос и один ответ.
+service MatchRankEnrichment {
+  rpc CalculateRankChanges(CalculateRankChangesRequest) returns (RankChangesResponse);
+}
+
+// Один игрок матча.
+message MatchPlayer {
+  string player_id = 1;
+  string nickname = 2;
+  int32 rating = 3;
+  string rank = 4;
+  bool winner = 5;
+}
+
+// Данные матча, которые enrichment-client берет из события match.finished.
+message CalculateRankChangesRequest {
+  string match_id = 1;
+  string mode = 2;
+  string region = 3;
+  string winner_player_id = 4;
+  string winner_nickname = 5;
+  repeated MatchPlayer players = 6;
+}
+
+// Изменение рейтинга одного игрока.
+message PlayerRankChange {
+  string player_id = 1;
+  string nickname = 2;
+  int32 old_rating = 3;
+  int32 delta = 4;
+  int32 new_rating = 5;
+  string old_rank = 6;
+  string new_rank = 7;
+}
+
+// Ответ gRPC-сервера с результатом обогащения события матча.
+message RankChangesResponse {
+  string match_id = 1;
+  string winner_nickname = 2;
+  repeated PlayerRankChange changes = 3;
+  string summary = 4;
+}

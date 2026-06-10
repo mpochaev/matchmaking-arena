@@ -1,0 +1,2771 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Matchmaking Arena – полный разбор проекта с нуля</title>
+<meta name="description" content="Интерактивный учебный разбор микросервисного проекта Matchmaking Arena: REST + GraphQL + RabbitMQ + gRPC + WebSocket.">
+
+<!-- ===== CDN: Mermaid (диаграммы), Chart.js (графики), Prism (подсветка кода) ===== -->
+<link id="prism-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+
+<!-- bootstrap: очереди для секционных скриптов (определяются ДО секций) -->
+<script>
+  window.__charts = [];                                   // фабрики графиков
+  window.registerChart = function(fn){ window.__charts.push(fn); };
+  window.__initFlow = null;                               // инициализатор анимированной схемы
+</script>
+
+<style>
+/* ===================================================================
+   ТЕМЫ (CSS-переменные). Светлая и тёмная.
+   =================================================================== */
+:root{
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
+  --sidebar-w: 320px;
+  --maxw: 1080px;
+  --radius: 14px;
+  --radius-sm: 9px;
+  --shadow: 0 10px 30px rgba(0,0,0,.18);
+  --shadow-sm: 0 4px 14px rgba(0,0,0,.12);
+  --speed: .25s;
+}
+
+html[data-theme="dark"]{
+  --bg: #0c0f17;
+  --bg-soft: #121624;
+  --bg-elev: #171c2c;
+  --bg-elev-2:#1d2336;
+  --panel: #141928;
+  --border: #283149;
+  --border-soft:#222a40;
+  --text: #e8ecf6;
+  --text-soft:#aab2c8;
+  --text-dim:#7c87a3;
+  --primary:#6ea8ff;
+  --primary-2:#8a7dff;
+  --accent:#34d6c0;
+  --green:#3ad17e;
+  --yellow:#f2c14e;
+  --red:#ff6b7d;
+  --pink:#ff7ac6;
+  --code-bg:#0b0e18;
+  --code-border:#222a40;
+  --kbd-bg:#1d2336;
+  --selection:rgba(110,168,255,.30);
+  --grad: linear-gradient(135deg,#6ea8ff,#8a7dff 55%,#ff7ac6);
+}
+html[data-theme="light"]{
+  --bg: #f4f6fb;
+  --bg-soft: #eef1f8;
+  --bg-elev: #ffffff;
+  --bg-elev-2:#f7f9fe;
+  --panel: #ffffff;
+  --border: #d8deec;
+  --border-soft:#e6eaf3;
+  --text: #1a2236;
+  --text-soft:#475069;
+  --text-dim:#808aa3;
+  --primary:#2f6df6;
+  --primary-2:#6b4dff;
+  --accent:#0bab93;
+  --green:#1aa055;
+  --yellow:#b9881f;
+  --red:#e23b54;
+  --pink:#d6469f;
+  --code-bg:#0f1322;        /* код всегда тёмный – читаемее для листингов */
+  --code-border:#2a3146;
+  --kbd-bg:#eef1f8;
+  --selection:rgba(47,109,246,.20);
+  --grad: linear-gradient(135deg,#2f6df6,#6b4dff 55%,#d6469f);
+  --shadow: 0 10px 30px rgba(20,30,60,.10);
+  --shadow-sm: 0 4px 14px rgba(20,30,60,.08);
+}
+
+*{box-sizing:border-box}
+::selection{background:var(--selection)}
+html{scroll-behavior:smooth}
+body{
+  margin:0; font-family:var(--font-sans); background:var(--bg); color:var(--text);
+  line-height:1.65; font-size:16px; -webkit-font-smoothing:antialiased;
+  transition:background var(--speed), color var(--speed);
+}
+
+/* ===== Reading progress bar ===== */
+#progress{position:fixed;top:0;left:0;height:3px;width:0%;z-index:120;
+  background:var(--grad);box-shadow:0 0 10px var(--primary);transition:width .1s linear}
+
+/* ===================================================================
+   TOPBAR
+   =================================================================== */
+#topbar{
+  position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:14px;
+  padding:10px 18px;background:color-mix(in srgb,var(--bg) 86%, transparent);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--border);
+}
+#topbar .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.2px;white-space:nowrap}
+#topbar .brand .logo{width:30px;height:30px;border-radius:8px;background:var(--grad);
+  display:grid;place-items:center;color:#fff;font-size:17px;box-shadow:var(--shadow-sm)}
+#topbar .brand .sub{font-size:12px;color:var(--text-dim);font-weight:600}
+#topbar .spacer{flex:1}
+.search-wrap{position:relative;flex:1;max-width:440px}
+.search-wrap input{
+  width:100%;padding:9px 14px 9px 38px;border-radius:999px;border:1px solid var(--border);
+  background:var(--bg-elev);color:var(--text);font-size:14px;outline:none;transition:.2s;
+}
+.search-wrap input:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--selection)}
+.search-wrap svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);opacity:.6}
+.search-count{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--text-dim)}
+.iconbtn{
+  display:grid;place-items:center;width:40px;height:40px;border-radius:10px;cursor:pointer;
+  border:1px solid var(--border);background:var(--bg-elev);color:var(--text);transition:.2s;font-size:18px;
+}
+.iconbtn:hover{border-color:var(--primary);color:var(--primary);transform:translateY(-1px)}
+#menuBtn{display:none}
+
+/* ===================================================================
+   LAYOUT
+   =================================================================== */
+#layout{display:flex;align-items:flex-start}
+#sidebar{
+  position:sticky;top:61px;align-self:flex-start;width:var(--sidebar-w);flex:0 0 var(--sidebar-w);
+  height:calc(100vh - 61px);overflow-y:auto;padding:22px 14px 60px;border-right:1px solid var(--border);
+  scrollbar-width:thin;
+}
+#sidebar::-webkit-scrollbar{width:8px}
+#sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px}
+.toc-title{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-dim);
+  font-weight:700;margin:6px 10px 12px}
+.toc a{
+  display:block;padding:7px 12px;border-radius:9px;color:var(--text-soft);text-decoration:none;
+  font-size:14px;border-left:2px solid transparent;transition:.15s;margin:1px 0;
+}
+.toc a:hover{background:var(--bg-elev);color:var(--text)}
+.toc a.active{background:var(--bg-elev);color:var(--primary);border-left-color:var(--primary);font-weight:600}
+.toc a .num{display:inline-block;width:22px;color:var(--text-dim);font-variant-numeric:tabular-nums}
+.toc a.active .num{color:var(--primary)}
+.toc .sub{margin-left:14px;border-left:1px dashed var(--border)}
+.toc .sub a{font-size:13px;padding-left:18px}
+
+main{flex:1;min-width:0;padding:34px clamp(18px,4vw,56px) 120px;max-width:calc(var(--maxw) + 112px);margin:0 auto}
+
+/* ===================================================================
+   SECTIONS / TYPO
+   =================================================================== */
+section{scroll-margin-top:80px;padding:18px 0 40px;border-bottom:1px solid var(--border-soft)}
+section:last-child{border-bottom:none}
+.sec-kicker{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;
+  text-transform:uppercase;letter-spacing:1.2px;color:var(--primary);
+  background:color-mix(in srgb,var(--primary) 14%,transparent);padding:5px 12px;border-radius:999px;margin-bottom:14px}
+h1,h2,h3,h4{line-height:1.25;color:var(--text);font-weight:800}
+h1{font-size:clamp(28px,4vw,40px);margin:.2em 0 .3em;letter-spacing:-.5px}
+h2{font-size:clamp(23px,3vw,31px);margin:.1em 0 .5em;letter-spacing:-.3px}
+h3{font-size:20px;margin:1.5em 0 .5em}
+h4{font-size:16.5px;margin:1.3em 0 .4em;color:var(--text-soft)}
+p{margin:.7em 0;color:var(--text-soft)}
+strong{color:var(--text);font-weight:700}
+a.inline{color:var(--primary);text-decoration:none;border-bottom:1px dashed var(--primary)}
+a.inline:hover{border-bottom-style:solid}
+ul,ol{color:var(--text-soft);padding-left:24px}
+li{margin:.32em 0}
+li::marker{color:var(--primary)}
+.lead{font-size:18px;color:var(--text-soft)}
+.hr-soft{border:none;border-top:1px dashed var(--border);margin:26px 0}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:6px;
+  background:var(--bg-elev-2);border:1px solid var(--border);color:var(--text-soft);font-family:var(--font-mono)}
+
+/* inline code */
+code:not([class*="language-"]){
+  font-family:var(--font-mono);font-size:.88em;background:var(--bg-elev-2);
+  border:1px solid var(--border);border-radius:6px;padding:1.5px 6px;color:var(--accent);
+}
+html[data-theme="light"] code:not([class*="language-"]){color:#b5396a}
+kbd{font-family:var(--font-mono);font-size:.82em;background:var(--kbd-bg);border:1px solid var(--border);
+  border-bottom-width:2px;border-radius:6px;padding:1px 7px;color:var(--text)}
+
+/* ===================================================================
+   CARDS / CALLOUTS
+   =================================================================== */
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:20px 22px;margin:18px 0;box-shadow:var(--shadow-sm)}
+.grid{display:grid;gap:16px}
+.grid.cols-2{grid-template-columns:repeat(2,1fr)}
+.grid.cols-3{grid-template-columns:repeat(3,1fr)}
+.grid.cols-4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:900px){.grid.cols-2,.grid.cols-3,.grid.cols-4{grid-template-columns:1fr}}
+
+.callout{display:flex;gap:14px;padding:15px 18px;border-radius:var(--radius-sm);margin:16px 0;
+  border:1px solid var(--border);border-left-width:4px;background:var(--bg-elev)}
+.callout .ico{font-size:20px;line-height:1.5;flex:0 0 auto}
+.callout .body{flex:1}
+.callout .body b{display:block;margin-bottom:2px;font-size:13px;text-transform:uppercase;letter-spacing:.5px}
+.callout p{margin:.2em 0;color:var(--text-soft)}
+.callout.important{border-left-color:var(--primary)} .callout.important b{color:var(--primary)}
+.callout.remember{border-left-color:var(--green)} .callout.remember b{color:var(--green)}
+.callout.mistake{border-left-color:var(--red)} .callout.mistake b{color:var(--red)}
+.callout.tip{border-left-color:var(--accent)} .callout.tip b{color:var(--accent)}
+.callout.simplify{border-left-color:var(--yellow)} .callout.simplify b{color:var(--yellow)}
+
+/* file fact card: Путь / Что делает / Почему так / Как проверить */
+.filecard{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin:18px 0;background:var(--panel)}
+.filecard .path{display:flex;align-items:center;gap:8px;background:var(--bg-elev-2);padding:10px 16px;
+  font-family:var(--font-mono);font-size:13px;color:var(--accent);border-bottom:1px solid var(--border);word-break:break-all}
+.filecard .rows{display:grid;grid-template-columns:140px 1fr}
+.filecard .rows>div{padding:11px 16px;border-bottom:1px solid var(--border-soft)}
+.filecard .rows .k{font-weight:700;color:var(--text);font-size:13.5px;background:var(--bg-soft)}
+.filecard .rows .v{color:var(--text-soft);font-size:14.5px}
+.filecard .rows>div:nth-last-child(-n+2){border-bottom:none}
+@media(max-width:680px){.filecard .rows{grid-template-columns:1fr}.filecard .rows .k{border-bottom:none}}
+
+/* ===================================================================
+   TABLES
+   =================================================================== */
+.tablewrap{overflow-x:auto;margin:18px 0;border:1px solid var(--border);border-radius:var(--radius)}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th,td{padding:11px 15px;text-align:left;border-bottom:1px solid var(--border-soft);vertical-align:top}
+th{background:var(--bg-elev-2);color:var(--text);font-weight:700;position:sticky;top:0}
+tbody tr:hover{background:var(--bg-elev)}
+td code{white-space:nowrap}
+tr:last-child td{border-bottom:none}
+
+/* ===================================================================
+   CODE BLOCKS + TABS + COPY
+   =================================================================== */
+.codeblock{margin:18px 0;border:1px solid var(--code-border);border-radius:var(--radius);overflow:hidden;background:var(--code-bg)}
+.code-tabbar{display:flex;align-items:center;gap:2px;background:#0a0d16;border-bottom:1px solid var(--code-border);padding:6px 8px;overflow-x:auto}
+html[data-theme="light"] .code-tabbar{background:#0a0d16}
+.code-tab{padding:6px 13px;border-radius:8px;font-size:12.5px;font-family:var(--font-mono);color:#9aa6c4;
+  cursor:pointer;white-space:nowrap;border:1px solid transparent;transition:.15s;background:none}
+.code-tab:hover{color:#fff;background:rgba(255,255,255,.06)}
+.code-tab.active{color:#fff;background:rgba(110,168,255,.18);border-color:rgba(110,168,255,.35)}
+.code-spacer{flex:1}
+.code-meta{font-size:11px;color:#6d7794;font-family:var(--font-mono);padding:0 8px;white-space:nowrap}
+.copybtn{display:flex;align-items:center;gap:6px;font-size:12px;color:#9aa6c4;background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:5px 11px;cursor:pointer;transition:.15s;font-family:var(--font-sans)}
+.copybtn:hover{color:#fff;border-color:var(--primary)}
+.copybtn.done{color:var(--green);border-color:var(--green)}
+.code-panes pre{margin:0;padding:16px 18px;overflow-x:auto;font-size:13.4px;line-height:1.6;max-height:560px}
+.code-panes pre.collapsed{max-height:230px;overflow:hidden;position:relative}
+.code-pane{display:none}
+.code-pane.active{display:block}
+pre[class*="language-"]{background:transparent!important;text-shadow:none!important}
+code[class*="language-"]{font-family:var(--font-mono)!important;text-shadow:none!important}
+.code-foot{display:flex;justify-content:center;border-top:1px solid var(--code-border);background:#0a0d16}
+.expandbtn{font-size:12px;color:#9aa6c4;background:none;border:none;cursor:pointer;padding:7px;width:100%;font-family:var(--font-sans)}
+.expandbtn:hover{color:var(--primary)}
+.code-cap{font-size:12.5px;color:var(--text-dim);margin:-10px 0 18px;padding-left:4px}
+
+/* line annotations under code */
+.code-notes{margin:14px 0 20px;padding-left:4px}
+.code-notes .cn{display:flex;gap:10px;margin:6px 0;font-size:14px;color:var(--text-soft)}
+.code-notes .cn b{flex:0 0 auto;font-family:var(--font-mono);color:var(--primary);font-size:12.5px;
+  background:color-mix(in srgb,var(--primary) 13%,transparent);border-radius:6px;padding:1px 7px;height:fit-content;margin-top:2px}
+
+/* ===================================================================
+   MERMAID + CHART
+   =================================================================== */
+.diagram{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:18px;margin:18px 0;text-align:center;box-shadow:var(--shadow-sm);overflow-x:auto}
+.diagram .mmd{display:flex;justify-content:center}
+.diagram .cap{font-size:13px;color:var(--text-dim);margin-top:8px;text-align:center}
+.fallback{display:none;font-family:var(--font-mono);font-size:12.5px;white-space:pre;text-align:left;
+  color:var(--text-soft);background:var(--code-bg);padding:16px;border-radius:10px;border:1px solid var(--code-border)}
+.no-cdn .fallback{display:block}
+.no-cdn .mmd{display:none}
+.chart-wrap{position:relative;height:340px;background:var(--panel);border:1px solid var(--border);
+  border-radius:var(--radius);padding:18px;margin:18px 0;box-shadow:var(--shadow-sm)}
+.chart-wrap.tall{height:420px}
+.no-cdn .chart-wrap{display:none}
+
+/* ===================================================================
+   ANIMATED END-TO-END FLOW
+   =================================================================== */
+.flow{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin:20px 0;box-shadow:var(--shadow-sm)}
+.flow-controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:18px}
+.flow-controls button{font-family:var(--font-sans);font-size:14px;font-weight:600;padding:9px 16px;border-radius:10px;
+  border:1px solid var(--border);background:var(--bg-elev);color:var(--text);cursor:pointer;transition:.15s}
+.flow-controls button:hover{border-color:var(--primary);color:var(--primary)}
+.flow-controls button.primary{background:var(--grad);color:#fff;border:none}
+.flow-controls .step-label{flex:1;min-width:200px;font-size:14px;color:var(--text-soft)}
+.flow-controls .step-label b{color:var(--primary)}
+.flow-stage{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px;justify-content:center}
+.flow-node{flex:1;min-width:120px;max-width:180px;border:1.5px solid var(--border);border-radius:12px;padding:12px;
+  text-align:center;background:var(--bg-elev);transition:.3s;opacity:.45;position:relative}
+.flow-node .icon{font-size:24px}
+.flow-node .name{font-weight:700;font-size:13.5px;margin-top:4px}
+.flow-node .role{font-size:11.5px;color:var(--text-dim);margin-top:2px}
+.flow-node .port{font-family:var(--font-mono);font-size:10.5px;color:var(--accent);margin-top:4px}
+.flow-node.active{opacity:1;border-color:var(--primary);box-shadow:0 0 0 3px var(--selection),var(--shadow-sm);transform:translateY(-3px)}
+.flow-node.done{opacity:.85;border-color:var(--green)}
+.flow-arrow{align-self:center;color:var(--text-dim);font-size:20px;flex:0 0 auto}
+.flow-bus{margin:14px 0;text-align:center;padding:10px;border:1.5px dashed var(--border);border-radius:12px;
+  background:var(--bg-elev);font-family:var(--font-mono);font-size:13px;color:var(--text-soft);transition:.3s;opacity:.5}
+.flow-bus.active{opacity:1;border-color:var(--pink);color:var(--pink)}
+.flow-log{margin-top:16px;background:var(--code-bg);border:1px solid var(--code-border);border-radius:10px;
+  padding:12px 14px;font-family:var(--font-mono);font-size:12.5px;color:#9aa6c4;min-height:54px;max-height:170px;overflow-y:auto}
+.flow-log .ln{margin:3px 0;opacity:0;animation:fadeup .3s forwards}
+.flow-log .ln .t{color:var(--green)}
+.flow-log .ln .rk{color:var(--pink)}
+@keyframes fadeup{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* ===================================================================
+   QUIZ
+   =================================================================== */
+.quiz{background:var(--panel);border:1px solid var(--border);border-left:4px solid var(--primary-2);
+  border-radius:var(--radius);padding:20px 22px;margin:20px 0}
+.quiz .q-head{display:flex;align-items:center;gap:10px;font-weight:700;margin-bottom:6px;color:var(--text)}
+.quiz .q-head .badge{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--primary-2);
+  background:color-mix(in srgb,var(--primary-2) 15%,transparent);padding:3px 10px;border-radius:999px}
+.quiz .q-text{font-size:16px;color:var(--text);margin:6px 0 12px;font-weight:600}
+.quiz .opt{display:block;width:100%;text-align:left;padding:11px 15px;margin:7px 0;border-radius:10px;
+  border:1px solid var(--border);background:var(--bg-elev);color:var(--text-soft);cursor:pointer;transition:.15s;font-size:14.5px;font-family:var(--font-sans)}
+.quiz .opt:hover{border-color:var(--primary);color:var(--text)}
+.quiz .opt.correct{border-color:var(--green);background:color-mix(in srgb,var(--green) 14%,transparent);color:var(--text)}
+.quiz .opt.wrong{border-color:var(--red);background:color-mix(in srgb,var(--red) 12%,transparent);color:var(--text)}
+.quiz .opt.disabled{pointer-events:none;opacity:.7}
+.quiz .explain{margin-top:12px;padding:12px 15px;border-radius:10px;background:var(--bg-elev);
+  border:1px dashed var(--border);font-size:14px;color:var(--text-soft);display:none}
+.quiz .explain.show{display:block}
+.quiz .explain b{color:var(--green)}
+
+/* ===================================================================
+   FLASHCARDS (defense)
+   =================================================================== */
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin:18px 0}
+.flip{perspective:1200px;height:185px;cursor:pointer}
+.flip-inner{position:relative;width:100%;height:100%;transition:transform .6s;transform-style:preserve-3d}
+.flip.flipped .flip-inner{transform:rotateY(180deg)}
+.flip-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:var(--radius);padding:18px;
+  display:flex;flex-direction:column;justify-content:center;border:1px solid var(--border);box-shadow:var(--shadow-sm)}
+.flip-front{background:var(--panel)}
+.flip-front .qmark{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--primary);margin-bottom:8px}
+.flip-front .qt{font-size:15.5px;font-weight:700;color:var(--text)}
+.flip-front .hint{position:absolute;bottom:12px;right:16px;font-size:11px;color:var(--text-dim)}
+.flip-back{background:var(--bg-elev-2);transform:rotateY(180deg);overflow-y:auto}
+.flip-back .at{font-size:13.5px;color:var(--text-soft);line-height:1.5}
+.flip-back .at b{color:var(--text)}
+
+/* speech blocks */
+.speech{border:1px solid var(--border);border-radius:var(--radius);margin:16px 0;overflow:hidden;background:var(--panel)}
+.speech .sh{background:var(--grad);color:#fff;padding:11px 18px;font-weight:700;font-size:14px;display:flex;justify-content:space-between;align-items:center}
+.speech .sh .min{font-family:var(--font-mono);font-size:12px;opacity:.85}
+.speech .sb{padding:16px 20px;color:var(--text-soft);font-size:15px}
+.speech .sb p{margin:.5em 0}
+
+/* pills / legend */
+.pills{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.pill{font-size:13px;font-weight:600;padding:6px 13px;border-radius:999px;border:1px solid var(--border);background:var(--bg-elev);color:var(--text-soft)}
+.pill .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
+
+/* rank badges */
+.rankbar{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.rankbadge{flex:1;min-width:120px;border-radius:12px;padding:12px;text-align:center;border:1px solid var(--border);background:var(--bg-elev)}
+.rankbadge .nm{font-weight:800;font-size:14px}
+.rankbadge .rg{font-size:12px;color:var(--text-dim);font-family:var(--font-mono);margin-top:3px}
+.rankbadge.bronze{box-shadow:inset 0 -3px 0 #cd7f32}
+.rankbadge.silver{box-shadow:inset 0 -3px 0 #aab2c0}
+.rankbadge.gold{box-shadow:inset 0 -3px 0 #f2c14e}
+.rankbadge.platinum{box-shadow:inset 0 -3px 0 #34d6c0}
+.rankbadge.diamond{box-shadow:inset 0 -3px 0 #6ea8ff}
+
+/* search hidden */
+.search-hidden{display:none!important}
+mark{background:var(--yellow);color:#000;border-radius:3px;padding:0 2px}
+
+/* footer */
+footer{padding:40px 0 0;color:var(--text-dim);font-size:13px;text-align:center}
+
+/* back-to-top */
+#toTop{position:fixed;right:22px;bottom:22px;width:46px;height:46px;border-radius:50%;border:none;
+  background:var(--grad);color:#fff;font-size:20px;cursor:pointer;box-shadow:var(--shadow);z-index:90;
+  opacity:0;pointer-events:none;transition:.25s}
+#toTop.show{opacity:1;pointer-events:auto}
+#toTop:hover{transform:translateY(-3px)}
+
+/* mobile */
+#backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99}
+@media(max-width:1000px){
+  #menuBtn{display:grid}
+  #sidebar{position:fixed;left:0;top:0;height:100vh;z-index:101;background:var(--bg-soft);
+    transform:translateX(-105%);transition:transform .3s;box-shadow:var(--shadow);padding-top:18px}
+  #sidebar.open{transform:none}
+  #backdrop.open{display:block}
+  .search-wrap{max-width:none}
+  #topbar .brand .sub{display:none}
+}
+@media(max-width:560px){.code-panes pre{font-size:12.5px}}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<!-- ===================== TOPBAR ===================== -->
+<header id="topbar">
+  <button class="iconbtn" id="menuBtn" aria-label="Меню">☰</button>
+  <div class="brand">
+    <span class="logo">⚔️</span>
+    <span>Matchmaking Arena<br><span class="sub">полный разбор проекта с нуля</span></span>
+  </div>
+  <div class="spacer"></div>
+  <div class="search-wrap">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input id="search" type="search" placeholder="Поиск по курсу: rabbitmq, joinLobby, gRPC, rank…" autocomplete="off">
+    <span class="search-count" id="searchCount"></span>
+  </div>
+  <button class="iconbtn" id="themeBtn" title="Светлая / тёмная тема">🌙</button>
+</header>
+
+<div id="backdrop"></div>
+
+<!-- ===================== LAYOUT ===================== -->
+<div id="layout">
+  <!-- SIDEBAR / TOC -->
+  <nav id="sidebar">
+    <div class="toc-title">Содержание</div>
+    <div class="toc" id="toc">
+      <a href="#intro"><span class="num">0</span>Как читать разбор</a>
+      <a href="#big-picture"><span class="num">1</span>Общая идея</a>
+      <a href="#project-map"><span class="num">2</span>Карта проекта</a>
+      <a href="#history"><span class="num">3</span>История создания</a>
+      <div class="sub">
+        <a href="#stage-rest"><span class="num">3.1</span>REST API contract</a>
+        <a href="#stage-matchmaking"><span class="num">3.2</span>Сервис matchmaking</a>
+        <a href="#stage-graphql"><span class="num">3.3</span>GraphQL</a>
+        <a href="#stage-rabbitmq"><span class="num">3.4</span>RabbitMQ + события</a>
+        <a href="#stage-matchlog"><span class="num">3.5</span>match-log-service</a>
+        <a href="#stage-grpc"><span class="num">3.6</span>gRPC enrichment</a>
+        <a href="#stage-websocket"><span class="num">3.7</span>WebSocket</a>
+      </div>
+      <a href="#e2e"><span class="num">4</span>End-to-end сценарий</a>
+      <a href="#troubleshooting"><span class="num">5</span>Частые ошибки</a>
+      <a href="#defense"><span class="num">6</span>Защита проекту</a>
+      <a href="#build"><span class="num">7</span>Собрать с нуля</a>
+      <a href="#glossary"><span class="num">8</span>Глоссарий</a>
+      <a href="#cheatsheet"><span class="num">9</span>Cheat sheet</a>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main id="content">
+<!-- ================================================================
+     SECTION 0 – КАК ЧИТАТЬ
+     ================================================================ -->
+<section id="intro">
+  <span class="sec-kicker">Раздел 0 · Старт</span>
+  <h1>Matchmaking Arena: полный разбор проекта с нуля</h1>
+  <p class="lead">Учебная микросервисная система по предмету «Сервисно-Ориентированное Программирование». Один сценарий – матчмейкинг в онлайн-игре – но через него показаны <strong>пять способов общения сервисов</strong>: REST, GraphQL, RabbitMQ, gRPC и WebSocket. Этот разбор ведёт вас за руку: от большой картины к каждой строчке кода, к запуску, тестированию и защите проекта преподавателю.</p>
+
+  <div class="pills">
+    <span class="pill"><span class="dot" style="background:var(--green)"></span>REST</span>
+    <span class="pill"><span class="dot" style="background:var(--primary-2)"></span>GraphQL</span>
+    <span class="pill"><span class="dot" style="background:var(--pink)"></span>RabbitMQ</span>
+    <span class="pill"><span class="dot" style="background:var(--accent)"></span>gRPC</span>
+    <span class="pill"><span class="dot" style="background:var(--yellow)"></span>WebSocket</span>
+    <span class="pill">Java 21</span>
+    <span class="pill">Spring Boot 4.0.3</span>
+    <span class="pill">8 Maven-модулей</span>
+  </div>
+
+  <div class="grid cols-2">
+    <div class="card">
+      <h3>Для кого этот материал</h3>
+      <p>Для новичка, который <strong>уже собрал проект</strong> (возможно, с помощью ИИ), но хочет понять его <strong>по-настоящему</strong>: не «что где лежит», а <em>почему</em> система устроена именно так и как она росла по заданиям СОП.</p>
+    </div>
+    <div class="card">
+      <h3>Какие знания нужны</h3>
+      <p>Базовый Java (классы, интерфейсы, коллекции), общее понятие «клиент → сервер», и готовность не бояться слова «микросервис». Всё остальное – Spring, RabbitMQ, gRPC, GraphQL, WebSocket – объясняется здесь с нуля.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Что вы научитесь делать после этого курса</h3>
+    <ol>
+      <li>Объяснить архитектуру проекта преподавателю – устно и по схеме.</li>
+      <li>Понять весь путь создания проекта с нуля, этап за этапом.</li>
+      <li>Понимать назначение каждого модуля, класса, DTO, контракта, события и очереди.</li>
+      <li>Видеть, как REST, GraphQL, RabbitMQ, gRPC и WebSocket работают вместе в одной цепочке.</li>
+      <li>Самостоятельно собрать аналогичную учебную систему.</li>
+      <li>Отличать <strong>учебное упрощение</strong> от настоящей архитектурной идеи.</li>
+    </ol>
+  </div>
+
+  <div class="callout important">
+    <span class="ico">🧭</span>
+    <div class="body"><b>Как не испугаться 8 модулей</b>
+    <p>Модулей много, но они делятся всего на <strong>два вида</strong>: <strong>контракты</strong> (3 шт. – это просто «словари» общих типов, они не запускаются) и <strong>сервисы</strong> (5 шт. – это запускаемые приложения). Если держать это в голове, карта проекта мгновенно становится простой. Мы вернёмся к этому в <a class="inline" href="#project-map">разделе 2</a>.</p></div>
+  </div>
+
+  <div class="callout tip">
+    <span class="ico">💡</span>
+    <div class="body"><b>Как пользоваться страницей</b>
+    <p>Слева – оглавление со <strong>scrollspy</strong> (подсвечивает, где вы сейчас). Сверху – <strong>поиск</strong> (печатайте <code>joinLobby</code>, <code>match.finished</code>, <code>gRPC</code>) и переключатель <strong>светлой/тёмной темы</strong>. У блоков кода есть вкладки и кнопка <kbd>Copy</kbd>. В конце разделов – <strong>мини-квизы</strong> и <strong>флешкарты для защиты</strong>.</p></div>
+  </div>
+</section>
+
+<!-- ================================================================
+     SECTION 1 – ОБЩАЯ ИДЕЯ
+     ================================================================ -->
+<section id="big-picture">
+  <span class="sec-kicker">Раздел 1 · Большая картина</span>
+  <h2>Общая идея Matchmaking Arena</h2>
+  <p>Представьте онлайн-игру. Игроки заходят, встают в очередь («лобби»), система собирает из них матч, матч идёт, кто-то побеждает, рейтинги пересчитываются, а в углу экрана всплывают уведомления. <strong>Matchmaking Arena</strong> воспроизводит ровно этот сценарий – но цель не игра, а демонстрация <strong>распределённой системы</strong>.</p>
+
+  <h3>Почему матчмейкинг идеально подходит для СОП</h3>
+  <p>Сервисно-ориентированное программирование – это про то, как <strong>несколько отдельных программ</strong> договариваются и работают вместе. Матчмейкинг естественно распадается на независимые задачи, каждую из которых удобно отдать своему сервису и своему способу связи:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Задача в игре</th><th>Кто решает</th><th>Способ связи</th><th>Почему именно так</th></tr></thead>
+      <tbody>
+        <tr><td>Создать игрока, собрать лобби, провести матч</td><td><code>matchmaking</code></td><td>REST / GraphQL</td><td>Внешний клиент шлёт команды и читает данные синхронно</td></tr>
+        <tr><td>Сообщить всем «что-то произошло»</td><td>шина событий</td><td>RabbitMQ</td><td>Один отправитель, много получателей, асинхронно</td></tr>
+        <tr><td>Вести журнал всех событий</td><td><code>match-log-service</code></td><td>RabbitMQ → REST</td><td>Отдельная ответственность – история</td></tr>
+        <tr><td>Точно посчитать новый рейтинг</td><td><code>grpc-match-analytics-server</code></td><td>gRPC</td><td>Быстрый строгий вызов «запрос→ответ» между сервисами</td></tr>
+        <tr><td>Показать живые уведомления в браузере</td><td><code>notification-service</code></td><td>WebSocket</td><td>Сервер сам шлёт сообщения клиенту без перезапросов</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Типовой сценарий курса и его адаптация</h3>
+  <p>В курсе СОП есть «эталонный» проект преподавателя про <strong>книги и авторов</strong> (он лежит в <code>context/Example/</code>). Matchmaking Arena – это тот же самый каркас, но предметная область заменена на игроков, лобби и матчи. Идеи один-в-один, поэтому ваш проект легко сверять с эталоном.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Эталон преподавателя (книги)</th><th>Matchmaking Arena (игры)</th><th>Роль</th></tr></thead>
+      <tbody>
+        <tr><td><code>demo-rest</code></td><td><code>matchmaking</code></td><td>Главный сервис</td></tr>
+        <tr><td><code>books-api-contract</code></td><td><code>api-contract</code></td><td>REST/GraphQL контракт</td></tr>
+        <tr><td><code>books-events-contract</code></td><td><code>matchmaking-events-contract</code></td><td>Контракт событий</td></tr>
+        <tr><td><code>books-grpc-contract</code></td><td><code>matchmaking-grpc-contract</code></td><td>gRPC контракт</td></tr>
+        <tr><td><code>audit-service</code></td><td><code>match-log-service</code></td><td>Журнал</td></tr>
+        <tr><td><code>grpc-analytics-server</code></td><td><code>grpc-match-analytics-server</code></td><td>gRPC сервер</td></tr>
+        <tr><td><code>grpc-enrichment-client</code></td><td><code>grpc-match-enrichment-client</code></td><td>gRPC клиент-мост</td></tr>
+        <tr><td><code>notification-service</code></td><td><code>notification-service</code></td><td>WebSocket уведомления</td></tr>
+        <tr><td>авторы и книги</td><td>игроки, лобби, матчи</td><td>Доменные сущности</td></tr>
+        <tr><td><code>book.created</code> / <code>book.enriched</code></td><td><code>match.finished</code> / <code>match.enriched</code></td><td>Ключевые события</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Схема: «игроки → лобби → матч → события → лог → gRPC → уведомления»</h3>
+  <div class="diagram">
+    <div class="mmd">
+graph LR
+  U(["Игрок / клиент"]):::ext -->|REST или GraphQL| MM["matchmaking 8080"]:::svc
+  MM -->|публикует события| MQ{{"RabbitMQ matchmaking.events"}}:::bus
+  MQ -->|все события| LOG["match-log-service 8081"]:::svc
+  MQ -->|все события| NTF["notification-service 8084"]:::svc
+  MQ -->|только match.finished| ENR["enrichment-client 8082"]:::svc
+  ENR -->|gRPC 9090| AN["analytics-server"]:::svc
+  AN -->|плюс 25 минус 10| ENR
+  ENR -->|match enriched| MQ
+  NTF -->|WebSocket push| B(["Браузер"]):::ext
+  classDef svc fill:#1d2336,stroke:#46507a,color:#e8ecf6;
+  classDef bus fill:#2a1f33,stroke:#ff7ac6,color:#ff7ac6;
+  classDef ext fill:#10261f,stroke:#3ad17e,color:#d6ffe9;
+    </div>
+    <pre class="fallback">[Игрок] --REST/GraphQL--> [matchmaking :8080]
+        |
+        v  публикует события
+   ( RabbitMQ: matchmaking.events )
+     |            |              \
+     | #          | #             \ match.finished
+     v            v                v
+[match-log     [notification    [enrichment-client :8082]
+  :8081]         :8084]               |  gRPC :9090
+                  |                   v
+              WebSocket          [analytics-server]
+                  |               (+25 / -10)
+                  v                   |
+              [Браузер] <--- match.enriched (обратно в RabbitMQ)</pre>
+    <div class="cap">Полный путь данных: синхронный вход (REST/GraphQL) → асинхронная шина (RabbitMQ) → синхронный расчёт (gRPC) → живой push (WebSocket).</div>
+  </div>
+
+  <div class="callout remember">
+    <span class="ico">📌</span>
+    <div class="body"><b>Запомнить</b>
+    <p>Главный сервис <strong>не вызывает</strong> другие сервисы напрямую. Он лишь <strong>публикует события</strong> в RabbitMQ. Кому это интересно – те сами подписаны. Это и есть «слабая связанность» (loose coupling) – сердце сервисно-ориентированного подхода.</p></div>
+  </div>
+</section>
+
+<!-- ================================================================
+     SECTION 2 – КАРТА ПРОЕКТА
+     ================================================================ -->
+<section id="project-map">
+  <span class="sec-kicker">Раздел 2 · Карта</span>
+  <h2>Карта проекта: 8 модулей, 2 вида</h2>
+  <p>Проект – это один <strong>Maven-агрегатор</strong> (корневой <code>pom.xml</code> с <code>packaging=pom</code>) и 8 модулей внутри. GroupId у всех – <code>edu.rutmiit.demo</code>, версия – <code>6.0-SNAPSHOT</code>.</p>
+
+  <h3>Дерево модулей</h3>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="tree-1">Структура</button><span class="code-spacer"></span><span class="code-meta">Matchmaking Arena/</span></div>
+    <div class="code-panes"><div class="code-pane active" id="tree-1"><pre><code class="language-bash">Matchmaking Arena/
+├── pom.xml                        # корневой агрегатор (packaging=pom)
+├── mvnw / mvnw.cmd                # Maven Wrapper (не нужен глобальный Maven)
+│
+├── api-contract/                  # [контракт] REST DTO + интерфейсы + GraphQL schema
+├── matchmaking-events-contract/   # [контракт] классы событий RabbitMQ
+├── matchmaking-grpc-contract/     # [контракт] .proto -> генерируемый Java-код
+│
+├── matchmaking/                   # [СЕРВИС :8080] REST + GraphQL + publishers
+├── match-log-service/             # [СЕРВИС :8081] слушает события -> лог
+├── grpc-match-enrichment-client/  # [СЕРВИС :8082] RabbitMQ -> gRPC -> RabbitMQ
+├── grpc-match-analytics-server/   # [СЕРВИС :8083 HTTP / :9090 gRPC] расчёт рейтинга
+├── notification-service/          # [СЕРВИС :8084] WebSocket push + static UI
+│
+└── context/                       # учебные материалы (НЕ модуль)
+    ├── AGENTS.md                  # правила и архитектура (источник правды)
+    ├── README.md                  # инструкция запуска
+    ├── Example/                   # эталонный проект преподавателя (книги)
+    ├── Lectures.pdf / Practices.pdf
+    └── ...</code></pre></div></div>
+  </div>
+
+  <h3>Что запускается, а что – нет</h3>
+  <div class="grid cols-2">
+    <div class="card">
+      <h4 style="color:var(--accent)">📦 Контракты (3) – НЕ запускаются</h4>
+      <p>Это библиотеки-«словари». У них нет <code>main()</code>, их нельзя «запустить». Их собирают в <code>.jar</code> и подключают как зависимость к сервисам, чтобы все говорили на одном языке типов.</p>
+      <ul>
+        <li><code>api-contract</code></li>
+        <li><code>matchmaking-events-contract</code></li>
+        <li><code>matchmaking-grpc-contract</code></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="color:var(--primary)">🚀 Сервисы (5) – запускаются</h4>
+      <p>Это полноценные Spring Boot приложения со своим портом. Каждое запускается отдельной командой в отдельной консоли – так и выглядит микросервисная архитектура.</p>
+      <ul>
+        <li><code>matchmaking</code> – 8080</li>
+        <li><code>match-log-service</code> – 8081</li>
+        <li><code>grpc-match-enrichment-client</code> – 8082</li>
+        <li><code>grpc-match-analytics-server</code> – 8083 / 9090</li>
+        <li><code>notification-service</code> – 8084</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Модуль</th><th>Вид</th><th>Запускается?</th><th>Порт(ы)</th><th>Зачем нужен</th></tr></thead>
+      <tbody>
+        <tr><td><code>api-contract</code></td><td>контракт</td><td>нет</td><td>–</td><td>REST DTO, интерфейсы-контроллеры, Swagger-аннотации, GraphQL-схема</td></tr>
+        <tr><td><code>matchmaking-events-contract</code></td><td>контракт</td><td>нет</td><td>–</td><td>Общие классы событий: <code>EventEnvelope</code>, <code>RoutingKeys</code>, <code>*Event</code></td></tr>
+        <tr><td><code>matchmaking-grpc-contract</code></td><td>контракт</td><td>нет</td><td>–</td><td><code>.proto</code>-файл; Maven генерирует из него Java-классы</td></tr>
+        <tr><td><code>matchmaking</code></td><td>сервис</td><td>да</td><td>8080</td><td>Главный сервис: игроки/лобби/матчи, REST, GraphQL, публикация событий</td></tr>
+        <tr><td><code>match-log-service</code></td><td>сервис</td><td>да</td><td>8081</td><td>Слушает все события, ведёт in-memory журнал, отдаёт по REST</td></tr>
+        <tr><td><code>grpc-match-enrichment-client</code></td><td>сервис</td><td>да</td><td>8082</td><td>Мост: ловит <code>match.finished</code>, зовёт gRPC, шлёт <code>match.enriched</code></td></tr>
+        <tr><td><code>grpc-match-analytics-server</code></td><td>сервис</td><td>да</td><td>8083 / 9090</td><td>gRPC-сервер: считает изменения рейтинга (+25 / −10)</td></tr>
+        <tr><td><code>notification-service</code></td><td>сервис</td><td>да</td><td>8084</td><td>Слушает события, пушит WebSocket-уведомления в браузер</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Порты с одного взгляда</h3>
+  <div class="chart-wrap"><canvas id="portsChart"></canvas></div>
+  <pre class="fallback">8080  matchmaking (REST+GraphQL)
+8081  match-log-service
+8082  grpc-match-enrichment-client
+8083  grpc-match-analytics-server (HTTP/actuator)
+9090  grpc-match-analytics-server (gRPC)
+8084  notification-service (HTTP + WebSocket)
+5672  RabbitMQ (AMQP)
+15672 RabbitMQ (Management UI)</pre>
+
+  <h3>Как Maven Reactor собирает проект</h3>
+  <p>Когда вы запускаете <code>mvnw clean install</code> в корне, Maven читает список <code>&lt;modules&gt;</code>, строит граф зависимостей и сам выбирает <strong>правильный порядок сборки</strong> (это называется <strong>Reactor</strong>). Контракты собираются первыми, потому что сервисы от них зависят.</p>
+  <div class="diagram">
+    <div class="mmd">
+graph TD
+  ROOT["pom.xml root aggregator"]:::root
+  ROOT --> C1[api-contract]:::con
+  ROOT --> C2[matchmaking-events-contract]:::con
+  ROOT --> C3[matchmaking-grpc-contract]:::con
+  C1 --> MM[matchmaking]:::svc
+  C2 --> MM
+  C2 --> LOG[match-log-service]:::svc
+  C2 --> ENR[grpc-match-enrichment-client]:::svc
+  C3 --> ENR
+  C3 --> AN[grpc-match-analytics-server]:::svc
+  C2 --> NTF[notification-service]:::svc
+  classDef root fill:#2a2433,stroke:#8a7dff,color:#cabfff;
+  classDef con fill:#10261f,stroke:#3ad17e,color:#d6ffe9;
+  classDef svc fill:#1d2336,stroke:#46507a,color:#e8ecf6;
+    </div>
+    <pre class="fallback">root pom
+ ├─ api-contract ───────────► matchmaking
+ ├─ events-contract ────────► matchmaking, match-log, enrichment, notification
+ └─ grpc-contract ──────────► enrichment-client, analytics-server
+(контракты собираются раньше сервисов – Reactor сам это определяет)</pre>
+    <div class="cap">Стрелка = «зависит от». Maven сначала соберёт контракты, потом сервисы.</div>
+  </div>
+
+  <div class="callout important">
+    <span class="ico">🔑</span>
+    <div class="body"><b>Важно: флаги <code>-pl</code> и <code>-am</code></b>
+    <p>Чтобы запустить <em>один</em> сервис, используют <code>-pl matchmaking</code> («project list» – только этот модуль) и <code>-am</code> («also make» – собери ещё и те модули, от которых он зависит, например контракты). Без <code>-am</code> Maven может пожаловаться, что не нашёл свежий контракт.</p></div>
+  </div>
+
+  <div class="quiz" data-quiz="map">
+    <div class="q-head"><span class="badge">Мини-квиз</span> Проверь себя</div>
+    <div class="q-text">Сколько модулей в проекте можно «запустить» как приложение?</div>
+    <button class="opt" data-correct="0">Все 8</button>
+    <button class="opt" data-correct="1">5 сервисов (контракты не запускаются)</button>
+    <button class="opt" data-correct="0">3 контракта</button>
+    <button class="opt" data-correct="0">Только matchmaking</button>
+    <div class="explain"><b>Верно: 5.</b> Контракты (<code>api-contract</code>, <code>matchmaking-events-contract</code>, <code>matchmaking-grpc-contract</code>) – это библиотеки без <code>main()</code>. Запускаются только 5 Spring Boot сервисов.</div>
+  </div>
+</section>
+<script>
+/* график портов (Раздел 2) */
+registerChart(function(){
+  const el=document.getElementById('portsChart'); if(!el) return null;
+  const c=chartColors();
+  return new Chart(el,{
+    type:'bar',
+    data:{
+      labels:['matchmaking','match-log','enrichment','analytics HTTP','analytics gRPC','notification','RabbitMQ AMQP','RabbitMQ UI'],
+      datasets:[{
+        label:'Порт',
+        data:[8080,8081,8082,8083,9090,8084,5672,15672],
+        backgroundColor:[c.primary,c.primary,c.accent,c.accent,c.green,c.yellow,c.pink,c.pink],
+        borderRadius:6, maxBarThickness:46
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:(i)=>'порт '+i.parsed.y}}},
+      scales:{
+        y:{beginAtZero:false, min:5000, ticks:{color:c.text}, grid:{color:c.grid}, title:{display:true,text:'номер порта',color:c.text}},
+        x:{ticks:{color:c.text,maxRotation:45,minRotation:30}, grid:{display:false}}
+      }
+    }
+  });
+});
+</script>
+<!-- ================================================================
+     SECTION 3 – ИСТОРИЯ (intro)
+     ================================================================ -->
+<section id="history">
+  <span class="sec-kicker">Раздел 3 · Эволюция</span>
+  <h2>Пошаговая история создания проекта</h2>
+  <p>Проект не родился целиком. Он рос по заданиям СОП, этап за этапом. На каждом этапе добавлялся <strong>новый способ связи</strong> между сервисами. Понять проект = пройти его путь в том же порядке.</p>
+  <div class="diagram">
+    <div class="mmd">
+graph LR
+  E1["Этап 1 · REST contract"]:::s --> E2["Этап 2 · matchmaking"]:::s --> E3["Этап 3 · GraphQL"]:::s --> E4["Этап 4 · RabbitMQ"]:::s --> E5["Этап 5 · match-log"]:::s --> E6["Этап 6 · gRPC"]:::s --> E7["Этап 7 · WebSocket"]:::s
+  classDef s fill:#1d2336,stroke:#46507a,color:#e8ecf6;
+    </div>
+    <pre class="fallback">Этап1 REST → Этап2 matchmaking → Этап3 GraphQL → Этап4 RabbitMQ → Этап5 match-log → Этап6 gRPC → Этап7 WebSocket</pre>
+    <div class="cap">Семь этапов. Каждый следующий опирается на предыдущий.</div>
+  </div>
+  <div class="callout tip"><span class="ico">🧱</span><div class="body"><b>Принцип</b><p>Сначала договариваются о <strong>контракте</strong> (какие данные и операции есть), потом пишут <strong>реализацию</strong>. «Сначала контракт» (contract-first) – повторяющийся мотив всего проекта: так делают и REST, и gRPC, и события.</p></div></div>
+</section>
+
+<!-- ================================================================
+     STAGE 1 – REST API CONTRACT
+     ================================================================ -->
+<section id="stage-rest">
+  <span class="sec-kicker">Этап 3.1 · REST</span>
+  <h2>Этап 1. REST API contract – модуль <code>api-contract</code></h2>
+
+  <h3>Что это и зачем отдельный модуль</h3>
+  <p><strong>REST</strong> – самый привычный способ: клиент шлёт HTTP-запрос (<code>GET</code>, <code>POST</code>) на адрес вроде <code>/api/players</code> и получает JSON. <strong>Контракт</strong> – это формальное описание: какие есть адреса, что они принимают и что возвращают. В нашем проекте контракт вынесен в <em>отдельный</em> модуль <code>api-contract</code>, который не запускается, а только подключается к <code>matchmaking</code>.</p>
+
+  <div class="grid cols-3">
+    <div class="card"><h4>📐 DTO</h4><p>«Формы» данных: что приходит в запросе и что уходит в ответе (records).</p></div>
+    <div class="card"><h4>🔌 Интерфейсы-эндпоинты</h4><p>Java-интерфейсы с аннотациями Spring и Swagger – описание URL без реализации.</p></div>
+    <div class="card"><h4>⚠️ Исключения</h4><p>Доменные ошибки (не найдено, нельзя войти и т.п.), общие для контракта.</p></div>
+  </div>
+
+  <div class="callout important"><span class="ico">🎯</span><div class="body"><b>Зачем выносить контракт в отдельный jar</b>
+  <p>Контракт можно отдать другой команде, другому сервису или фронтенду <strong>без</strong> исходников бизнес-логики. Реализация в <code>matchmaking</code> просто <code>implements PlayerApi</code> – и компилятор гарантирует, что она не разойдётся с контрактом. Это и есть «сначала контракт».</p></div></div>
+
+  <div class="filecard">
+    <div class="path">📁 api-contract/src/main/java/edu/rutmiit/demo/matchmakingapicontract/</div>
+    <div class="rows">
+      <div class="k">Что делает</div><div class="v">Хранит DTO, интерфейсы-контроллеры, исключения и Swagger-аннотации. GraphQL-схема лежит в <code>src/main/resources/graphql/schema.graphqls</code>.</div>
+      <div class="k">Почему так</div><div class="v">Контракт отделён от реализации → его легко переиспользовать и нельзя «случайно» нарушить.</div>
+      <div class="k">Запускается?</div><div class="v">Нет. Это библиотека (<code>.jar</code>), зависимость для <code>matchmaking</code>.</div>
+      <div class="k">Как проверить</div><div class="v">После запуска <code>matchmaking</code> открыть Swagger UI – он построен ровно из этих интерфейсов и DTO.</div>
+    </div>
+  </div>
+
+  <h3>DTO – «формы» данных</h3>
+  <p>DTO (Data Transfer Object) – это простой объект для передачи данных «по проводу». В проекте они сделаны как Java <code>record</code> (короткий неизменяемый класс). Обратите внимание на аннотации валидации (<code>@NotBlank</code>, <code>@Min</code>) – Spring проверит их автоматически.</p>
+  <div class="codeblock">
+    <div class="code-tabbar">
+      <button class="code-tab active" data-target="dto-1">PlayerRequest</button>
+      <button class="code-tab" data-target="dto-2">PlayerResponse</button>
+      <button class="code-tab" data-target="dto-3">JoinLobbyRequest</button>
+      <button class="code-tab" data-target="dto-4">LobbyResponse</button>
+      <button class="code-tab" data-target="dto-5">MatchResponse</button>
+      <span class="code-spacer"></span>
+      <span class="code-meta">api-contract · dto/</span>
+      <button class="copybtn"><span class="cl">Copy</span></button>
+    </div>
+    <div class="code-panes">
+      <div class="code-pane active" id="dto-1"><pre><code class="language-java">// что КЛИЕНТ присылает, чтобы создать игрока
+public record PlayerRequest(
+        @NotBlank String nickname,        // обязателен, не пустой
+        @Min(0) @Max(5000) Integer rating, // 0..5000
+        String region,
+        String rank
+) {}</code></pre></div>
+      <div class="code-pane" id="dto-2"><pre><code class="language-java">// что СЕРВЕР возвращает про игрока
+public record PlayerResponse(
+        UUID id,
+        String nickname,
+        int rating,
+        String region,
+        String rank,
+        OffsetDateTime createdAt   // время с часовым поясом (не LocalDateTime!)
+) {}</code></pre></div>
+      <div class="code-pane" id="dto-3"><pre><code class="language-java">// запрос "встать в очередь / войти в лобби"
+public record JoinLobbyRequest(
+        @NotNull UUID playerId,
+        @NotBlank String mode,        // BATTLE_ROYALE | SURVIVAL | DEATHMATCH
+        @NotBlank String region,      // например EU
+        @NotBlank String rank,        // например SILVER
+        @Min(5) Integer timeoutSeconds // через сколько распустить, если мало игроков
+) {}</code></pre></div>
+      <div class="code-pane" id="dto-4"><pre><code class="language-java">// ответ про лобби (очередь ожидания)
+public record LobbyResponse(
+        UUID id, String mode, String region, String rank,
+        String status,               // WAITING | FORMED | DISBANDED
+        int minPlayers,              // = 3
+        int playerCount,
+        List&lt;PlayerResponse&gt; players,
+        OffsetDateTime createdAt,
+        OffsetDateTime deadlineAt,   // когда истекает ожидание
+        OffsetDateTime startedAt,
+        UUID matchId                 // появляется, когда лобби стартовало
+) {}</code></pre></div>
+      <div class="code-pane" id="dto-5"><pre><code class="language-java">// ответ про матч
+public record MatchResponse(
+        UUID id, UUID lobbyId,
+        String mode, String region, String rank,
+        String status,                       // IN_PROGRESS | FINISHED
+        List&lt;PlayerResponse&gt; players,
+        List&lt;MatchEventResponse&gt; events,     // лента событий боя
+        PlayerResponse winner,
+        OffsetDateTime createdAt,
+        OffsetDateTime finishedAt
+) {}</code></pre></div>
+    </div>
+  </div>
+  <div class="callout simplify"><span class="ico">🎓</span><div class="body"><b>Учебная деталь</b><p>Время везде – <code>OffsetDateTime</code> (с зоной), а не <code>LocalDateTime</code>. Это правило проекта: так дата корректно сериализуется в JSON и в события RabbitMQ.</p></div></div>
+
+  <h3>Интерфейсы-эндпоинты: контракт URL без реализации</h3>
+  <p>Здесь описаны адреса и их параметры. Реализация (что внутри) появится позже в <code>matchmaking</code>. Аннотация <code>@Operation</code> – для Swagger, <code>@GetMapping/@PostMapping</code> – для Spring.</p>
+  <div class="codeblock">
+    <div class="code-tabbar">
+      <button class="code-tab active" data-target="api-1">PlayerApi</button>
+      <button class="code-tab" data-target="api-2">LobbyApi</button>
+      <button class="code-tab" data-target="api-3">MatchApi</button>
+      <span class="code-spacer"></span>
+      <span class="code-meta">api-contract · endpoints/</span>
+      <button class="copybtn"><span class="cl">Copy</span></button>
+    </div>
+    <div class="code-panes">
+      <div class="code-pane active" id="api-1"><pre><code class="language-java">@Tag(name = "Players", description = "Игроки матчмейкинга")
+@RequestMapping("/api/players")
+public interface PlayerApi {
+
+    @Operation(summary = "Получить список игроков")
+    @GetMapping
+    PagedModel&lt;EntityModel&lt;PlayerResponse&gt;&gt; getAllPlayers(
+            @RequestParam(required = false) String region,
+            @RequestParam(required = false) String rank,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size);
+
+    @Operation(summary = "Получить игрока по ID")
+    @GetMapping("/{id}")
+    EntityModel&lt;PlayerResponse&gt; getPlayerById(@PathVariable UUID id);
+
+    @Operation(summary = "Создать игрока")
+    @PostMapping
+    ResponseEntity&lt;EntityModel&lt;PlayerResponse&gt;&gt; createPlayer(@Valid @RequestBody PlayerRequest request);
+}</code></pre></div>
+      <div class="code-pane" id="api-2"><pre><code class="language-java">@Tag(name = "Lobbies", description = "Лобби, где игроки ждут старта игры")
+@RequestMapping("/api/lobbies")
+public interface LobbyApi {
+
+    @GetMapping
+    PagedModel&lt;EntityModel&lt;LobbyResponse&gt;&gt; getAllLobbies(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String region,
+            @RequestParam(required = false) String rank,
+            @RequestParam(required = false) String mode,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size);
+
+    @Operation(summary = "Добавить игрока в подходящее лобби")
+    @PostMapping("/join")
+    ResponseEntity&lt;EntityModel&lt;LobbyResponse&gt;&gt; joinLobby(@Valid @RequestBody JoinLobbyRequest request);
+
+    @Operation(summary = "Принудительно распустить лобби")
+    @PostMapping("/{id}/disband")
+    EntityModel&lt;LobbyResponse&gt; disbandLobby(@PathVariable UUID id);
+
+    @Operation(summary = "Распустить просроченные лобби")
+    @PostMapping("/process-timeouts")
+    List&lt;LobbyResponse&gt; processTimeouts();
+}</code></pre></div>
+      <div class="code-pane" id="api-3"><pre><code class="language-java">@Tag(name = "Matches", description = "Матчи, созданные из лобби")
+@RequestMapping("/api/matches")
+public interface MatchApi {
+
+    @GetMapping
+    PagedModel&lt;EntityModel&lt;MatchResponse&gt;&gt; getAllMatches(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String region,
+            @RequestParam(required = false) String rank,
+            @RequestParam(required = false) String mode,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size);
+
+    @Operation(summary = "Получить матч по ID")
+    @GetMapping("/{id}")
+    EntityModel&lt;MatchResponse&gt; getMatchById(@PathVariable UUID id);
+}</code></pre></div>
+    </div>
+  </div>
+  <div class="code-notes">
+    <div class="cn"><b>@RequestMapping</b><span>общий префикс адреса для всех методов интерфейса (<code>/api/players</code>).</span></div>
+    <div class="cn"><b>@GetMapping/@PostMapping</b><span>HTTP-метод и хвост пути. <code>GET</code> – чтение, <code>POST</code> – создание/команда.</span></div>
+    <div class="cn"><b>@RequestParam</b><span>параметры в URL (<code>?region=EU&amp;page=0</code>); <code>@PathVariable</code> – часть пути (<code>/{id}</code>).</span></div>
+    <div class="cn"><b>@Valid @RequestBody</b><span>тело запроса (JSON) превращается в DTO и проверяется по аннотациям валидации.</span></div>
+    <div class="cn"><b>PagedModel/EntityModel</b><span>обёртки HATEOAS – об этом ниже.</span></div>
+  </div>
+
+  <h3>HATEOAS – ссылки прямо в ответе</h3>
+  <p>Заметили <code>EntityModel</code> и <code>PagedModel</code>? Это <strong>HATEOAS</strong> (Hypermedia As The Engine Of Application State). Идея: ответ содержит не только данные, но и <strong>ссылки на связанные действия</strong>. Клиенту не нужно «знать» адреса заранее – он берёт их из ответа.</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="hateoas-1">пример ответа</button><span class="code-spacer"></span><span class="code-meta">GET /api/players/{id}</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes"><div class="code-pane active" id="hateoas-1"><pre><code class="language-json">{
+  "id": "7e2b...","nickname": "Artem","rating": 1210,"rank": "SILVER",
+  "_links": {
+    "self":       { "href": "/api/players/7e2b..." },
+    "players":    { "href": "/api/players" },
+    "join-lobby": { "href": "/api/lobbies/join" }
+  }
+}</code></pre></div></div>
+  </div>
+  <p>В реализации (модуль <code>matchmaking</code>) ссылки добавляются так:</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="hateoas-2">PlayerController.toModel</button><span class="code-spacer"></span><span class="code-meta">matchmaking · controller/</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes"><div class="code-pane active" id="hateoas-2"><pre><code class="language-java">private EntityModel&lt;PlayerResponse&gt; toModel(PlayerResponse player) {
+    EntityModel&lt;PlayerResponse&gt; model = EntityModel.of(player);
+    model.add(Link.of("/api/players/" + player.id()).withSelfRel());
+    model.add(Link.of("/api/players").withRel("players"));
+    model.add(Link.of("/api/lobbies/join").withRel("join-lobby"));
+    return model;
+}</code></pre></div></div>
+  </div>
+
+  <h3>Пагинация</h3>
+  <p>Списки не отдаются целиком – они разбиты на страницы (<code>page</code>, <code>size</code>). Универсальная обёртка – <code>PagedResponse&lt;T&gt;</code> с фабричным методом <code>of(...)</code>, который сам нарезает список на страницы.</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="page-1">PagedResponse</button><span class="code-spacer"></span><span class="code-meta">api-contract · dto/</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes"><div class="code-pane active" id="page-1"><pre><code class="language-java">public record PagedResponse&lt;T&gt;(
+        List&lt;T&gt; content,
+        int pageNumber, int pageSize,
+        long totalElements, int totalPages, boolean last
+) {
+    public static &lt;T&gt; PagedResponse&lt;T&gt; of(List&lt;T&gt; allItems, int page, int size) {
+        // нарезает allItems на страницу [page*size .. page*size+size)
+        // и считает totalPages / last
+    }
+}</code></pre></div></div>
+  </div>
+
+  <h3>Ошибки (исключения контракта)</h3>
+  <p>Доменные ошибки тоже часть контракта – они общие и понятные. Когда сервис их бросает, глобальный обработчик превращает их в аккуратный <code>ErrorResponse</code> с нужным HTTP-кодом.</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="exc-1">исключения</button><button class="code-tab" data-target="exc-2">ErrorResponse</button><span class="code-spacer"></span><span class="code-meta">api-contract · exception/</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes">
+      <div class="code-pane active" id="exc-1"><pre><code class="language-java">class ResourceNotFoundException      extends RuntimeException { ... } // 404
+class InvalidLobbyOperationException  extends RuntimeException { ... } // 400/409
+class LobbyHasPlayersException        extends RuntimeException { ... } // нельзя распустить
+class PlayerAlreadyInLobbyException   extends RuntimeException { ... } // уже в очереди/игре</code></pre></div>
+      <div class="code-pane" id="exc-2"><pre><code class="language-java">public record ErrorResponse(
+        OffsetDateTime timestamp,
+        int status, String error, String message, String path
+) {}</code></pre></div>
+    </div>
+  </div>
+
+  <h3>Swagger / OpenAPI</h3>
+  <p>Из аннотаций <code>@Tag</code>/<code>@Operation</code> библиотека <code>springdoc-openapi</code> автоматически строит интерактивную страницу документации, где можно <strong>прямо в браузере</strong> отправлять запросы.</p>
+  <div class="filecard">
+    <div class="path">🌐 http://localhost:8080/swagger-ui.html</div>
+    <div class="rows">
+      <div class="k">Что делает</div><div class="v">Показывает все REST-эндпоинты, их параметры и позволяет тыкать кнопку «Try it out».</div>
+      <div class="k">Как проверить</div><div class="v">Запустить <code>matchmaking</code> и открыть адрес. Должны быть группы <em>Players</em>, <em>Lobbies</em>, <em>Matches</em>.</div>
+    </div>
+  </div>
+
+  <div class="callout remember"><span class="ico">📌</span><div class="body"><b>Из «книг» в «матчмейкинг»</b><p>В эталоне был <code>books-api-contract</code> с DTO <code>Book</code>/<code>Author</code>. Здесь та же идея, но сущности – <code>Player</code>, <code>Lobby</code>, <code>Match</code>. Структура модуля (dto / endpoints / exception) полностью совпадает.</p></div></div>
+
+  <div class="quiz" data-quiz="rest">
+    <div class="q-head"><span class="badge">Мини-квиз</span> REST contract</div>
+    <div class="q-text">Зачем контракт вынесен в отдельный модуль <code>api-contract</code>, который не запускается?</div>
+    <button class="opt" data-correct="0">Чтобы было больше модулей для отчёта</button>
+    <button class="opt" data-correct="1">Чтобы описание API можно было переиспользовать и гарантировать, что реализация ему соответствует</button>
+    <button class="opt" data-correct="0">Чтобы ускорить запуск matchmaking</button>
+    <button class="opt" data-correct="0">Чтобы хранить там базу данных</button>
+    <div class="explain"><b>Верно.</b> Контракт – общий «договор». <code>matchmaking</code> делает <code>implements PlayerApi</code>, и компилятор не даст реализации разойтись с контрактом. База данных тут вообще ни при чём – данные хранятся в памяти.</div>
+  </div>
+</section>
+<!-- ================================================================
+     STAGE 2 – MATCHMAKING SERVICE
+     ================================================================ -->
+<section id="stage-matchmaking">
+  <span class="sec-kicker">Этап 3.2 · Ядро</span>
+  <h2>Этап 2. Главный сервис <code>matchmaking</code></h2>
+  <p>Это «мозг» проекта. Он реализует REST-контракт, хранит игроков/лобби/матчи, проводит матчи и публикует события. Всё остальное (лог, gRPC, уведомления) – лишь реагирует на то, что здесь происходит.</p>
+
+  <h3>Точка входа</h3>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="app-1">DemoApplication</button><span class="code-spacer"></span><span class="code-meta">matchmaking · com/example/demo/</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes"><div class="code-pane active" id="app-1"><pre><code class="language-java">@SpringBootApplication   // включает автоконфигурацию и сканирование компонентов
+@EnableScheduling        // включает @Scheduled методы (проверка таймаутов лобби)
+public class DemoApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(DemoApplication.class, args);
+    }
+}</code></pre></div></div>
+  </div>
+  <div class="code-notes">
+    <div class="cn"><b>@SpringBootApplication</b><span>«поднимает» веб-сервер на 8080, находит все контроллеры, сервисы и конфигурации.</span></div>
+    <div class="cn"><b>@EnableScheduling</b><span>разрешает периодические задачи – например, раз в 5 секунд распускать «протухшие» лобби.</span></div>
+  </div>
+
+  <h3>Где хранится состояние и почему в памяти</h3>
+  <p>Никакой базы данных нет. Игроки, лобби и матчи живут в обычных <code>Map</code> внутри <code>MatchmakingService</code>. <code>LinkedHashMap</code> сохраняет порядок добавления (удобно для пагинации и предсказуемости).</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="state-1">in-memory storage</button><button class="code-tab" data-target="state-2">константы</button><span class="code-spacer"></span><span class="code-meta">matchmaking · service/MatchmakingService.java</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes">
+      <div class="code-pane active" id="state-1"><pre><code class="language-java">private final Map&lt;UUID, PlayerState&gt; players = new LinkedHashMap&lt;&gt;();
+private final Map&lt;UUID, LobbyState&gt;  lobbies = new LinkedHashMap&lt;&gt;();
+private final Map&lt;UUID, MatchState&gt;  matches = new LinkedHashMap&lt;&gt;();
+// отдельный поток-планировщик для "симуляции" матчей по таймеру
+private final ScheduledExecutorService matchExecutor =
+        Executors.newSingleThreadScheduledExecutor();</code></pre></div>
+      <div class="code-pane" id="state-2"><pre><code class="language-java">private static final int MIN_PLAYERS_TO_START = 3;          // минимум для запуска таймера
+private static final int DEFAULT_TIMEOUT_SECONDS = 30;
+private static final Set&lt;String&gt; ALLOWED_MODES =
+        Set.of("BATTLE_ROYALE", "SURVIVAL", "DEATHMATCH");
+private static final int MATCH_MIN_DURATION_SECONDS = 60;   // матч длится 60..120 c
+private static final int MATCH_MAX_DURATION_SECONDS = 120;
+private static final int MATCH_MIN_PROGRESS_EVENTS = 4;     // 4..8 событий боя
+private static final int MATCH_MAX_PROGRESS_EVENTS = 8;</code></pre></div>
+    </div>
+  </div>
+  <div class="callout simplify"><span class="ico">🎓</span><div class="body"><b>Учебное упрощение: данные в памяти</b><p>После перезапуска сервиса <strong>все игроки, лобби и матчи исчезают</strong> – это нормально и так задумано. В курсе важна архитектура связи сервисов, а не персистентность. Не говорите преподавателю, что тут «есть база» – её нет.</p></div></div>
+
+  <h3>Ранг по рейтингу</h3>
+  <p>Ранг – это «лига» игрока, она вычисляется из числового рейтинга. Один метод, простые пороги:</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="rank-1">rankByRating</button><span class="code-spacer"></span><span class="code-meta">matchmaking · service/</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes"><div class="code-pane active" id="rank-1"><pre><code class="language-java">private String rankByRating(int rating) {
+    if (rating &lt; 1000) return "BRONZE";
+    if (rating &lt; 1500) return "SILVER";
+    if (rating &lt; 2000) return "GOLD";
+    if (rating &lt; 2500) return "PLATINUM";
+    return "DIAMOND";
+}</code></pre></div></div>
+  </div>
+  <div class="rankbar">
+    <div class="rankbadge bronze"><div class="nm">BRONZE</div><div class="rg">&lt; 1000</div></div>
+    <div class="rankbadge silver"><div class="nm">SILVER</div><div class="rg">1000–1499</div></div>
+    <div class="rankbadge gold"><div class="nm">GOLD</div><div class="rg">1500–1999</div></div>
+    <div class="rankbadge platinum"><div class="nm">PLATINUM</div><div class="rg">2000–2499</div></div>
+    <div class="rankbadge diamond"><div class="nm">DIAMOND</div><div class="rg">2500+</div></div>
+  </div>
+  <div class="callout important"><span class="ico">🔁</span><div class="body"><b>Тот же расчёт – в двух местах</b><p>Этот же метод <code>rankByRating</code> повторён в <code>grpc-match-analytics-server</code>. При создании игрока ранг ставит <code>matchmaking</code>; после матча новый ранг считает gRPC-сервер – но по тем же порогам. Запомните это для <a class="inline" href="#stage-grpc">Этапа 6</a>.</p></div></div>
+
+  <h3>Главный метод: <code>joinLobby</code></h3>
+  <p>Это самая важная бизнес-логика проекта. Разберём пошагово, что происходит, когда игрок «встаёт в очередь».</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="join-1">joinLobby()</button><span class="code-spacer"></span><span class="code-meta">matchmaking · service/MatchmakingService.java</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes"><div class="code-pane active" id="join-1"><pre class="collapsed"><code class="language-java">public synchronized LobbyResponse joinLobby(JoinLobbyRequest request) {
+    processExpiredLobbiesInternal();                 // (1) сначала чистим протухшие лобби
+
+    PlayerState player = playerState(request.playerId());
+    String mode   = normalize(request.mode());        // (2) приводим к верхнему регистру
+    String region = normalize(request.region());
+    String rank   = normalize(request.rank());
+    int timeoutSeconds = request.timeoutSeconds() == null
+            ? DEFAULT_TIMEOUT_SECONDS : request.timeoutSeconds();
+
+    ensureAllowedMode(mode);                          // (3) режим из белого списка?
+    ensurePlayerCanJoinQueue(player.id);              // (4) игрок ещё не ждёт и не играет?
+
+    boolean[] created = {false};
+    LobbyState lobby = lobbies.values().stream()      // (5) ищем ПОДХОДЯЩЕЕ лобби
+            .filter(c -&gt; "WAITING".equals(c.status))
+            .filter(c -&gt; c.playerIds.size() &lt; MAX_PLAYERS_IN_LOBBY)
+            .filter(c -&gt; c.mode.equals(mode))
+            .filter(c -&gt; c.region.equals(region))
+            .filter(c -&gt; c.rank.equals(rank))
+            .min(Comparator.comparing(c -&gt; c.createdAt))  // самое старое
+            .orElseGet(() -&gt; {                        // (6) нет подходящего -&gt; создаём новое
+                created[0] = true;
+                return createLobby(mode, region, rank, timeoutSeconds);
+            });
+
+    if (created[0]) lobbyEventPublisher.publishCreated(toLobbyResponse(lobby)); // событие lobby.created
+
+    lobby.playerIds.add(player.id);                   // (7) добавляем игрока
+    LobbyResponse afterJoin = toLobbyResponse(lobby);
+    lobbyEventPublisher.publishPlayerJoined(afterJoin, toPlayerResponse(player)); // lobby.player-joined
+
+    if (lobby.playerIds.size() &gt;= MAX_PLAYERS_IN_LOBBY) {   // (8) набралось 5 -&gt; старт сразу
+        cancelLobbyStartTask(lobby.id);
+        return formLobbyAndStartMatch(lobby.id);
+    }
+
+    if (lobby.playerIds.size() &gt;= MIN_PLAYERS_TO_START) {   // (9) набралось 3 или 4 -&gt; ждём 10 секунд
+        scheduleLobbyStart(lobby.id);
+    }
+    return afterJoin;
+}</code></pre></div></div>
+    <div class="code-foot"><button class="expandbtn">▼ Показать полностью</button></div>
+  </div>
+  <div class="code-notes">
+    <div class="cn"><b>(1)</b><span>перед любой операцией распускаем лобби, у которых вышло время и не набралось 3 игроков.</span></div>
+    <div class="cn"><b>(2)</b><span><code>normalize</code> приводит строки к единому виду (верхний регистр), чтобы <code>eu</code> и <code>EU</code> попадали в одно лобби.</span></div>
+    <div class="cn"><b>(3)</b><span>проверка режима по белому списку <code>ALLOWED_MODES</code> – иначе ошибка.</span></div>
+    <div class="cn"><b>(4)</b><span>ключевая защита: если игрок уже ждёт в <code>WAITING</code>-лобби или играет – войти повторно нельзя.</span></div>
+    <div class="cn"><b>(5)</b><span>лобби «свои» только если совпали <strong>все три</strong>: <code>mode</code> + <code>region</code> + <code>rank</code>.</span></div>
+    <div class="cn"><b>(6)</b><span>если подходящего нет – создаём новое и публикуем <code>lobby.created</code>.</span></div>
+    <div class="cn"><b>(8)</b><span>если игроков уже 5, стартуем матч сразу, потому что это максимум лобби.</span></div>
+    <div class="cn"><b>(9)</b><span>если игроков 3 или 4, запускаем ожидание 10 секунд. Новый 4-й игрок перезапустит таймер.</span></div>
+    <div class="cn"><b>synchronized</b><span>метод синхронизирован – два игрока не «влезут» в лобби одновременно и не сломают счётчик.</span></div>
+  </div>
+
+  <div class="callout important"><span class="ico">🧩</span><div class="body"><b>Почему лобби группируется по <code>mode + region + rank</code></b><p>Чтобы игроки попадали в матч <strong>с похожими и из своего региона</strong>. SILVER из EU в режиме BATTLE_ROYALE не встанет в одно лобби с GOLD из NA. Это три «координаты» очереди.</p></div></div>
+
+  <h3>Почему после 3-го игрока есть ожидание 10 секунд</h3>
+  <p>Как только в лобби набирается <code>MIN_PLAYERS_TO_START = 3</code>, матч ещё не стартует мгновенно. Сервис запускает таймер на <strong>10 секунд</strong>, чтобы успел присоединиться 4-й игрок. Если 4-й игрок пришёл, таймер начинается заново. Если лобби набрало <code>MAX_PLAYERS_IN_LOBBY = 5</code>, ожидать больше не нужно: лобби сразу переходит в <code>FORMED</code> и создаётся матч.</p>
+  <div class="diagram">
+    <div class="mmd">
+sequenceDiagram
+  participant P1 as Игрок 1
+  participant P2 as Игрок 2
+  participant P3 as Игрок 3
+  participant P4 as Игрок 4
+  participant MM as matchmaking
+  P1->>MM: joinLobby = создаёт лобби A (1/3, WAITING)
+  P2->>MM: joinLobby = лобби A (2/3, WAITING)
+  P3->>MM: joinLobby = лобби A (3/5), запускается таймер 10 сек
+  P4->>MM: joinLobby = лобби A (4/5), таймер 10 сек начинается заново
+    </div>
+    <pre class="fallback">P1 join -> Lobby A 1/3 WAITING
+P2 join -> Lobby A 2/3 WAITING
+P3 join -> Lobby A 3/5 WAITING -> таймер 10 секунд
+P4 join -> Lobby A 4/5 WAITING -> таймер начинается заново
+P5 join -> Lobby A 5/5 -> FORMED -> матч создан</pre>
+    <div class="cap">4-й игрок теперь может попасть в тот же матч, если придёт в 10-секундное окно. 5-й игрок запускает матч сразу.</div>
+  </div>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="guard-1">ensurePlayerCanJoinQueue (идея)</button><span class="code-spacer"></span><span class="code-meta">matchmaking · service/</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes"><div class="code-pane active" id="guard-1"><pre><code class="language-java">// игрок не должен дважды встать в очередь:
+// бросает PlayerAlreadyInLobbyException, если он уже
+//   - состоит в каком-то WAITING-лобби, или
+//   - играет в IN_PROGRESS-матче
+private void ensurePlayerCanJoinQueue(UUID playerId) { ... }
+
+private void ensureAllowedMode(String mode) {
+    if (!ALLOWED_MODES.contains(mode))
+        throw new InvalidLobbyOperationException("Unknown mode: " + mode);
+}</code></pre></div></div>
+  </div>
+
+  <h3>Старт матча: <code>startMatch</code></h3>
+  <p>Лобби становится <code>FORMED</code>, рождается <code>MatchState</code> со статусом <code>IN_PROGRESS</code>, а событие <code>MATCH_STARTED</code> остаётся внутри <code>match.events</code> как история матча. В RabbitMQ оно отдельно не публикуется.</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="start-1">startMatch()</button><span class="code-spacer"></span><span class="code-meta">matchmaking · service/</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes"><div class="code-pane active" id="start-1"><pre class="collapsed"><code class="language-java">private MatchState startMatch(LobbyState lobby) {
+    OffsetDateTime startedAt = OffsetDateTime.now();
+    lobby.status = "FORMED";                  // лобби больше не WAITING
+    // startedAt сохраняет время формирования лобби
+
+    UUID matchId = UUID.randomUUID();
+    List&lt;UUID&gt; matchPlayerIds = List.copyOf(lobby.playerIds);
+    List&lt;MatchEventResponse&gt; events = new ArrayList&lt;&gt;();
+
+    MatchEventResponse startEvent = event("MATCH_STARTED",
+            "Матч начался. Игроков в лобби: " + matchPlayerIds.size(),
+            null, null, startedAt);
+    events.add(startEvent);
+
+    MatchState match = new MatchState(matchId, lobby.id, lobby.mode, lobby.region,
+            lobby.rank, "IN_PROGRESS", matchPlayerIds, events, null, startedAt, null);
+
+    matches.put(match.id(), match);
+    lobby.matchId = match.id();
+    return match;
+}</code></pre></div></div>
+    <div class="code-foot"><button class="expandbtn">▼ Показать полностью</button></div>
+  </div>
+
+  <h3>«Симуляция» матча по таймеру: <code>scheduleMatchSimulation</code></h3>
+  <p>Реального игрового движка нет. Вместо него – <strong>планировщик</strong>: он раскидывает 4–8 случайных событий боя по случайным моментам внутри 60–120 секунд, а в конце вызывает <code>finishMatch</code>.</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="sim-1">scheduleMatchSimulation</button><button class="code-tab" data-target="sim-2">addRandomMatchProgressEvent</button><span class="code-spacer"></span><span class="code-meta">matchmaking · service/</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes">
+      <div class="code-pane active" id="sim-1"><pre><code class="language-java">private void scheduleMatchSimulation(UUID matchId) {
+    ThreadLocalRandom random = ThreadLocalRandom.current();
+    int durationSeconds = random.nextInt(MATCH_MIN_DURATION_SECONDS, MATCH_MAX_DURATION_SECONDS + 1); // 60..120
+    int progressEvents  = random.nextInt(MATCH_MIN_PROGRESS_EVENTS,  MATCH_MAX_PROGRESS_EVENTS + 1);  // 4..8
+
+    // раскидываем progress-события по случайным секундам матча
+    for (Integer delaySeconds : randomProgressDelays(durationSeconds, progressEvents)) {
+        matchExecutor.schedule(() -&gt; addRandomMatchProgressEvent(matchId), delaySeconds, TimeUnit.SECONDS);
+    }
+    // в конце матча выбираем победителя
+    matchExecutor.schedule(() -&gt; finishMatch(matchId), durationSeconds, TimeUnit.SECONDS);
+}</code></pre></div>
+      <div class="code-pane" id="sim-2"><pre><code class="language-java">private void addRandomMatchProgressEvent(UUID matchId) {
+    MatchState match = matches.get(matchId);
+    if (match == null || !"IN_PROGRESS".equals(match.status())) return;
+    // случайно выбираем тип события: удар, уклон, лут, урон зоны, лечение
+    int eventType = ThreadLocalRandom.current().nextInt(5);
+    // ... формируем PLAYER_HIT / PLAYER_DODGED / PLAYER_FOUND_LOOT / ZONE_DAMAGE / PLAYER_HEALED
+    match.events().add(progressEvent);
+    matchEventPublisher.publishProgress(toMatchResponse(match), progressEvent); // match.progress
+}</code></pre></div>
+    </div>
+  </div>
+  <div class="chart-wrap"><canvas id="eventsChart"></canvas></div>
+  <pre class="fallback">Типы progress-событий: PLAYER_HIT, PLAYER_DODGED, PLAYER_FOUND_LOOT, ZONE_DAMAGE, PLAYER_HEALED (случайно), затем PLAYER_ELIMINATED. MATCH_STARTED и MATCH_FINISHED остаются внутри match.events.</pre>
+
+  <h3>Финал матча: <code>finishMatch</code></h3>
+  <p>Выбирается случайный победитель, для проигравших добавляются события <code>PLAYER_ELIMINATED</code>, матч переходит в <code>FINISHED</code>, и – важнейший момент – публикуется <strong><code>match.finished</code></strong>.</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="finish-1">finishMatch()</button><span class="code-spacer"></span><span class="code-meta">matchmaking · service/</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes"><div class="code-pane active" id="finish-1"><pre class="collapsed"><code class="language-java">private synchronized void finishMatch(UUID matchId) {
+    MatchState match = matches.get(matchId);
+    if (match == null || !"IN_PROGRESS".equals(match.status())) return;
+
+    OffsetDateTime finishedAt = OffsetDateTime.now();
+    PlayerState winner = randomPlayer(match.playerIds());   // случайный победитель
+
+    for (UUID playerId : match.playerIds()) {               // выбываем всех, кроме победителя
+        if (playerId.equals(winner.id)) continue;
+        MatchEventResponse elim = event("PLAYER_ELIMINATED",
+                winner.nickname + " выбил игрока " + playerState(playerId).nickname,
+                winner.id, playerId, finishedAt);
+        match.events().add(elim);
+        matchEventPublisher.publishProgress(toMatchResponse(match), elim); // match.progress
+    }
+
+    MatchEventResponse finishEvent = event("MATCH_FINISHED",
+            "Матч завершен. Победитель: " + winner.nickname, winner.id, null, finishedAt);
+    match.events().add(finishEvent);
+
+    MatchState finished = new MatchState(/* ... */ "FINISHED", /* winner.id, finishedAt */);
+    matches.put(matchId, finished);
+
+    matchEventPublisher.publishFinished(toMatchResponse(finished));               // match.finished  &lt;-- ВАЖНО
+}</code></pre></div></div>
+    <div class="code-foot"><button class="expandbtn">▼ Показать полностью</button></div>
+  </div>
+  <div class="callout important"><span class="ico">⚠️</span><div class="body"><b>Главный нюанс: что значит <code>match.finished</code></b><p>Название теперь прямое: <code>match.finished</code> публикуется <strong>в конце</strong> <code>finishMatch</code> и означает «<strong>готов финальный snapshot матча</strong> (с победителем) для дальнейшего обогащения по gRPC». Это учебное упрощение названия – держите его в голове, его обязательно спросят.</p></div></div>
+
+  <h3>Жизненный цикл лобби и матча</h3>
+  <div class="diagram">
+    <div class="mmd">
+stateDiagram-v2
+  [*] --> WAITING: создано (1-й игрок)
+  WAITING --> WAITING: +игрок (1/3, 2/3, 3/5, 4/5)
+  WAITING --> WAITING: 3-й игрок, таймер 10 секунд
+  WAITING --> WAITING: 4-й игрок, таймер заново
+  WAITING --> FORMED: таймер истёк или пришёл 5-й игрок
+  WAITING --> DISBANDED: timeout, игроков меньше 3
+  FORMED --> IN_PROGRESS: матч создан
+  IN_PROGRESS --> IN_PROGRESS: match.progress (4..8)
+  IN_PROGRESS --> FINISHED: finishMatch (match.finished)
+  FINISHED --> [*]
+  DISBANDED --> [*]
+    </div>
+    <pre class="fallback">Лобби: WAITING -> FORMED (таймер после 3/4 или 5 игроков) | WAITING -> DISBANDED (timeout, &lt;3)
+Матч:  IN_PROGRESS -> (4..8 progress) -> FINISHED (match.finished)</pre>
+  </div>
+
+  <h3>Распуск протухших лобби по таймеру</h3>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="timeout-1">@Scheduled</button><span class="code-spacer"></span><span class="code-meta">matchmaking · service/</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes"><div class="code-pane active" id="timeout-1"><pre><code class="language-java">@Scheduled(fixedDelay = 5000)   // каждые 5 секунд
+public synchronized void scheduledLobbyTimeoutCheck() {
+    processExpiredLobbiesInternal();   // WAITING + deadline в прошлом + игроков &lt; 3 -> DISBANDED
+}</code></pre></div></div>
+  </div>
+
+  <h3>Контроллеры – тонкая прослойка над сервисом</h3>
+  <p>Контроллеры <code>implements PlayerApi/LobbyApi/MatchApi</code>. В них <strong>нет</strong> бизнес-логики: они вызывают <code>MatchmakingService</code> и оборачивают результат в HATEOAS-модель.</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="ctrl-1">PlayerController</button><button class="code-tab" data-target="ctrl-2">LobbyController</button><span class="code-spacer"></span><span class="code-meta">matchmaking · controller/</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes">
+      <div class="code-pane active" id="ctrl-1"><pre><code class="language-java">@RestController
+public class PlayerController implements PlayerApi {
+    private final MatchmakingService matchmakingService;
+
+    @Override
+    public ResponseEntity&lt;EntityModel&lt;PlayerResponse&gt;&gt; createPlayer(PlayerRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(toModel(matchmakingService.createPlayer(request)));
+    }
+}</code></pre></div>
+      <div class="code-pane" id="ctrl-2"><pre><code class="language-java">@RestController
+public class LobbyController implements LobbyApi {
+    @Override
+    public ResponseEntity&lt;EntityModel&lt;LobbyResponse&gt;&gt; joinLobby(JoinLobbyRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(toModel(matchmakingService.joinLobby(request)));
+    }
+}</code></pre></div>
+    </div>
+  </div>
+  <div class="callout remember"><span class="ico">📌</span><div class="body"><b>Запомнить: разделение слоёв</b><p><strong>Контроллер</strong> = HTTP (принять/отдать). <strong>Сервис</strong> = бизнес-логика (правила). <strong>Контракт</strong> = договор. Та же логика дальше переиспользуется в GraphQL – потому что вся «правда» лежит в одном <code>MatchmakingService</code>.</p></div></div>
+
+  <div class="quiz" data-quiz="mm">
+    <div class="q-head"><span class="badge">Мини-квиз</span> matchmaking</div>
+    <div class="q-text">Что на самом деле означает событие <code>match.finished</code> в этом проекте?</div>
+    <button class="opt" data-correct="0">Что матч только что начался</button>
+    <button class="opt" data-correct="1">Что матч завершён и готов финальный snapshot для обогащения по gRPC</button>
+    <button class="opt" data-correct="0">Что создано новое лобби</button>
+    <button class="opt" data-correct="0">Что игрок зашёл в очередь</button>
+    <div class="explain"><b>Верно.</b> <code>match.finished</code> публикуется в конце <code>finishMatch</code>. Начало матча – это <code>lobby.formed</code>, а <code>MATCH_STARTED</code> остаётся только внутри <code>match.events</code>.</div>
+  </div>
+</section>
+<script>
+/* график типов событий матча (Этап 2) */
+registerChart(function(){
+  const el=document.getElementById('eventsChart'); if(!el) return null;
+  const c=chartColors();
+  return new Chart(el,{
+    type:'doughnut',
+    data:{
+      labels:['PLAYER_HIT','PLAYER_DODGED','PLAYER_FOUND_LOOT','ZONE_DAMAGE','PLAYER_HEALED'],
+      datasets:[{data:[1,1,1,1,1],
+        backgroundColor:[c.primary,c.accent,c.green,c.red,c.yellow],borderWidth:0}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'right',labels:{color:c.text}},
+      title:{display:true,text:'5 равновероятных типов progress-событий (nextInt(5))',color:c.text}}}
+  });
+});
+</script>
+<!-- ================================================================
+     STAGE 3 – GRAPHQL
+     ================================================================ -->
+<section id="stage-graphql">
+  <span class="sec-kicker">Этап 3.3 · GraphQL</span>
+  <h2>Этап 3. GraphQL – гибкое чтение и мутации</h2>
+
+  <h3>Зачем GraphQL, если уже есть REST?</h3>
+  <p>REST отдаёт «фиксированные» ответы: запросил игрока – получил все его поля, даже если нужно одно. <strong>GraphQL</strong> переворачивает это: <strong>клиент сам описывает, какие поля ему нужны</strong>, и получает ровно их – ни больше, ни меньше. Один запрос может вытащить лобби вместе с игроками и связанным матчем за один поход.</p>
+  <div class="grid cols-2">
+    <div class="card"><h4>REST</h4><p>Сервер решает форму ответа. Несколько эндпоинтов. Чтобы собрать связанные данные – несколько запросов.</p></div>
+    <div class="card"><h4>GraphQL</h4><p>Клиент решает форму ответа. Один эндпоинт <code>/graphql</code>. Связанные данные – в одном запросе через вложенные поля.</p></div>
+  </div>
+  <div class="callout important"><span class="ico">🧠</span><div class="body"><b>Главное правило проекта</b><p>GraphQL <strong>не дублирует бизнес-логику</strong>. Его резолверы (DataFetchers) просто вызывают тот же <code>MatchmakingService</code>, что и REST-контроллеры. Одна правда – два «окна» в неё.</p></div></div>
+
+  <h3>Схема <code>.graphqls</code> – контракт GraphQL</h3>
+  <p>Как и в REST, сначала контракт. Схема описывает типы, запросы (<code>Query</code>) и изменения (<code>Mutation</code>). Лежит в <code>api-contract/src/main/resources/graphql/schema.graphqls</code> (и копия в <code>matchmaking</code>).</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="gql-1">types</button><button class="code-tab" data-target="gql-2">Query</button><button class="code-tab" data-target="gql-3">Mutation</button><button class="code-tab" data-target="gql-4">input</button><span class="code-spacer"></span><span class="code-meta">schema.graphqls</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes">
+      <div class="code-pane active" id="gql-1"><pre><code class="language-graphql">scalar DateTime
+
+type Player { id: ID!  nickname: String!  rating: Int!  region: String!  rank: String!  createdAt: DateTime! }
+
+type Lobby {
+  id: ID!  mode: String!  region: String!  rank: String!  status: String!
+  minPlayers: Int!  playerCount: Int!
+  averageRating: Float        # ВЫЧИСЛЯЕМОЕ поле (считается только если запрошено)
+  players: [Player!]!
+  createdAt: DateTime!  deadlineAt: DateTime!  startedAt: DateTime
+  match: Match                # связанный матч (вложенное поле)
+}
+
+type Match {
+  id: ID!  lobby: Lobby!  mode: String!  region: String!  rank: String!  status: String!
+  players: [Player!]!  events: [MatchEvent!]!  winner: Player
+  createdAt: DateTime!  finishedAt: DateTime
+}</code></pre></div>
+      <div class="code-pane" id="gql-2"><pre><code class="language-graphql">type Query {
+  player(id: ID!): Player
+  players(filter: PlayerFilter, page: Int = 0, size: Int = 20): PlayerConnection!
+  lobby(id: ID!): Lobby
+  lobbies(filter: LobbyFilter, page: Int = 0, size: Int = 20): LobbyConnection!
+  lobbiesByRegion(region: String!, page: Int = 0, size: Int = 20): LobbyConnection!
+  match(id: ID!): Match
+  matches(filter: MatchFilter, page: Int = 0, size: Int = 20): MatchConnection!
+}</code></pre></div>
+      <div class="code-pane" id="gql-3"><pre><code class="language-graphql">type Mutation {
+  createPlayer(input: CreatePlayerInput!): Player!
+  "Добавляет игрока в WAITING-лобби или создаёт новое. При 3 игроках запускается таймер старта."
+  joinLobby(input: JoinLobbyInput!): Lobby!
+  disbandLobby(id: ID!): Lobby!
+  processLobbyTimeouts: [Lobby!]!
+}</code></pre></div>
+      <div class="code-pane" id="gql-4"><pre><code class="language-graphql">input CreatePlayerInput {
+  nickname: String!  rating: Int = 1000  region: String = "EU"  rank: String = "SILVER"
+}
+input JoinLobbyInput {
+  playerId: ID!  mode: String!  region: String!  rank: String!  timeoutSeconds: Int = 30
+}
+type PageInfo { pageNumber: Int!  pageSize: Int!  totalPages: Int!  last: Boolean! }</code></pre></div>
+    </div>
+  </div>
+
+  <h3>DataFetchers (DGS) – реализация резолверов</h3>
+  <p>Проект использует <strong>Netflix DGS</strong>. Резолвер – это метод, помеченный <code>@DgsQuery</code> или <code>@DgsMutation</code>. Внутри – вызов <code>MatchmakingService</code>.</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="dgs-1">PlayerDataFetcher</button><button class="code-tab" data-target="dgs-2">LobbyDataFetcher</button><span class="code-spacer"></span><span class="code-meta">matchmaking · graphql/</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes">
+      <div class="code-pane active" id="dgs-1"><pre><code class="language-java">@DgsComponent
+public class PlayerDataFetcher {
+    private final MatchmakingService matchmakingService;
+
+    @DgsQuery
+    public PlayerResponse player(@InputArgument String id) {
+        return matchmakingService.findPlayerById(UUID.fromString(id));  // тот же сервис, что и REST
+    }
+
+    @DgsMutation
+    public PlayerResponse createPlayer(@InputArgument CreatePlayerInputGql input) {
+        return matchmakingService.createPlayer(new PlayerRequest(
+                input.nickname(), input.rating(), input.region(), input.rank()));
+    }
+}</code></pre></div>
+      <div class="code-pane" id="dgs-2"><pre><code class="language-java">@DgsComponent
+public class LobbyDataFetcher {
+    @DgsMutation
+    public LobbyResponse joinLobby(@InputArgument JoinLobbyInputGql input) {
+        return matchmakingService.joinLobby(new JoinLobbyRequest(
+                UUID.fromString(input.playerId()),
+                input.mode(), input.region(), input.rank(), input.timeoutSeconds()));
+    }
+}</code></pre></div>
+    </div>
+  </div>
+
+  <h3>Вложенные и вычисляемые поля</h3>
+  <p>Поле <code>Lobby.averageRating</code> <strong>не хранится</strong> в <code>LobbyResponse</code>. Оно считается «на лету» отдельным резолвером – и только если клиент его запросил. Это и есть прелесть GraphQL: не запросил – не посчитали.</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="dgsf-1">averageRating (computed)</button><button class="code-tab" data-target="dgsf-2">Lobby.match (nested)</button><span class="code-spacer"></span><span class="code-meta">matchmaking · graphql/</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes">
+      <div class="code-pane active" id="dgsf-1"><pre><code class="language-java">@DgsComponent
+public class LobbyAverageRatingDataFetcher {
+    private final MatchmakingService matchmakingService;
+
+    @DgsData(parentType = "Lobby", field = "averageRating")
+    public Double averageRating(DgsDataFetchingEnvironment dfe) {
+        LobbyResponse lobby = dfe.getSource();        // родительский объект Lobby
+        return matchmakingService.calculateLobbyAverageRating(lobby.id());
+    }
+}</code></pre></div>
+      <div class="code-pane" id="dgsf-2"><pre><code class="language-java">@DgsData(parentType = "Lobby", field = "match")
+public MatchResponse match(DgsDataFetchingEnvironment dfe) {
+    LobbyResponse lobby = dfe.getSource();
+    if (lobby.matchId() == null) return null;
+    return matchmakingService.findMatchById(lobby.matchId());
+}
+// аналогично Match.lobby -> findLobbyByMatchId(...)</code></pre></div>
+    </div>
+  </div>
+
+  <h3>Защита GraphQL: depth, complexity, tracing</h3>
+  <p>GraphQL мощный – но вложенными запросами можно «положить» сервер. Поэтому стоят ограничители (instrumentation):</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="gsec-1">GraphQLSecurityConfig</button><span class="code-spacer"></span><span class="code-meta">matchmaking · graphql/security/</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes"><div class="code-pane active" id="gsec-1"><pre><code class="language-java">@Bean Instrumentation maxQueryDepthInstrumentation()      { return new MaxQueryDepthInstrumentation(20); }   // макс. глубина 20
+@Bean Instrumentation maxQueryComplexityInstrumentation() { return new MaxQueryComplexityInstrumentation(200); } // макс. сложность 200
+@Bean Instrumentation tracingInstrumentation()            { return new TracingInstrumentation(); }            // тайминги в ответе</code></pre></div></div>
+  </div>
+
+  <h3>Пробуем в GraphiQL</h3>
+  <div class="filecard">
+    <div class="path">🌐 http://localhost:8080/graphiql?path=/graphql</div>
+    <div class="rows"><div class="k">Что делает</div><div class="v">Встроенная песочница: пишете запрос слева, видите ответ справа, есть автодополнение по схеме.</div>
+      <div class="k">Как проверить</div><div class="v">Вставьте запрос ниже и нажмите ▶. Должны прийти только запрошенные поля.</div></div>
+  </div>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="giq-1">создать игрока</button><button class="code-tab" data-target="giq-2">лобби + averageRating</button><span class="code-spacer"></span><span class="code-meta">GraphiQL</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes">
+      <div class="code-pane active" id="giq-1"><pre><code class="language-graphql">mutation {
+  createPlayer(input: { nickname: "Artem", rating: 1210, region: "EU", rank: "SILVER" }) {
+    id  nickname  rank          # просим только эти поля
+  }
+}</code></pre></div>
+      <div class="code-pane" id="giq-2"><pre><code class="language-graphql">query {
+  lobbies(page: 0, size: 5) {
+    content {
+      id  status  playerCount
+      averageRating               # вычисляемое поле – посчитается только сейчас
+      players { nickname rating }  # вложенные игроки
+      match { id status winner { nickname } }  # связанный матч
+    }
+  }
+}</code></pre></div>
+    </div>
+  </div>
+  <div class="quiz" data-quiz="gql">
+    <div class="q-head"><span class="badge">Мини-квиз</span> GraphQL</div>
+    <div class="q-text">Где находится бизнес-логика, которую вызывают GraphQL DataFetchers?</div>
+    <button class="opt" data-correct="0">Внутри самих DataFetchers, отдельно от REST</button>
+    <button class="opt" data-correct="1">В общем <code>MatchmakingService</code> – том же, что и у REST</button>
+    <button class="opt" data-correct="0">В базе данных</button>
+    <button class="opt" data-correct="0">В RabbitMQ</button>
+    <div class="explain"><b>Верно.</b> DataFetchers – тонкая прослойка. Они переводят GraphQL-ввод в вызовы <code>MatchmakingService</code>. Никакого дублирования логики.</div>
+  </div>
+</section>
+
+<!-- ================================================================
+     STAGE 4 – RABBITMQ + EVENTS
+     ================================================================ -->
+<section id="stage-rabbitmq">
+  <span class="sec-kicker">Этап 3.4 · RabbitMQ</span>
+  <h2>Этап 4. RabbitMQ и контракт событий</h2>
+
+  <h3>Зачем шина событий и почему асинхронно</h3>
+  <p>До сих пор связь была синхронной: спросил – подождал – получил. Но «сообщить всем, что матч завершён» так делать неудобно: главный сервис не должен знать, кто и зачем слушает. Решение – <strong>шина событий</strong>. <code>matchmaking</code> просто <strong>публикует</strong> событие в RabbitMQ и забывает о нём. Кто подписан – тот и получит, когда сможет.</p>
+  <div class="grid cols-2">
+    <div class="card"><h4>Синхронно (REST/gRPC)</h4><p>«Позвонить и ждать ответа». Отправитель знает получателя и блокируется до ответа.</p></div>
+    <div class="card"><h4>Асинхронно (RabbitMQ)</h4><p>«Бросить письмо в почту». Отправитель не знает получателей и не ждёт. Слабая связанность, устойчивость к сбоям.</p></div>
+  </div>
+  <div class="callout remember"><span class="ico">📌</span><div class="body"><b>Publisher не знает Consumer</b><p>В этом вся суть. <code>matchmaking</code> не импортирует <code>match-log-service</code> и не зовёт его. Он шлёт <code>match.finished</code> в exchange – а уж кто подписался (лог, уведомления, enrichment), его не касается.</p></div></div>
+
+  <h3>Контракт событий – модуль <code>matchmaking-events-contract</code></h3>
+  <p>Чтобы отправитель и получатели понимали друг друга, классы событий вынесены в общий контракт. Каждое событие заворачивается в <strong>конверт</strong> <code>EventEnvelope</code> с метаданными.</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="evt-1">EventEnvelope</button><button class="code-tab" data-target="evt-2">EventMetadata</button><button class="code-tab" data-target="evt-3">RoutingKeys</button><button class="code-tab" data-target="evt-4">*Event (sealed)</button><span class="code-spacer"></span><span class="code-meta">matchmaking-events-contract</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes">
+      <div class="code-pane active" id="evt-1"><pre><code class="language-java">public record EventEnvelope&lt;T&gt;(EventMetadata metadata, T payload) {
+    public static &lt;T&gt; EventEnvelope&lt;T&gt; wrap(T payload, String source, String eventType) {
+        return new EventEnvelope&lt;&gt;(EventMetadata.create(source, eventType), payload);
+    }
+}</code></pre></div>
+      <div class="code-pane" id="evt-2"><pre><code class="language-java">public record EventMetadata(String eventId, Instant timestamp, String source, String eventType) {
+    public static EventMetadata create(String source, String eventType) {
+        return new EventMetadata(UUID.randomUUID().toString(), Instant.now(), source, eventType);
+    }
+}</code></pre></div>
+      <div class="code-pane" id="evt-3"><pre><code class="language-java">public final class RoutingKeys {
+    public static final String EXCHANGE = "matchmaking.events";
+    public static final String PLAYER_CREATED       = "player.created";
+    public static final String LOBBY_CREATED        = "lobby.created";
+    public static final String LOBBY_PLAYER_JOINED  = "lobby.player-joined";
+    public static final String LOBBY_FORMED        = "lobby.formed";
+    public static final String LOBBY_DISBANDED      = "lobby.disbanded";
+    public static final String MATCH_PROGRESS       = "match.progress";
+    public static final String MATCH_FINISHED        = "match.finished";
+    public static final String MATCH_ENRICHED       = "match.enriched";
+}</code></pre></div>
+      <div class="code-pane" id="evt-4"><pre><code class="language-java">public sealed interface MatchEvent {
+    record MatchPlayer(UUID playerId, String nickname, int rating, String rank) {}
+    record PlayerRankChange(UUID playerId, String nickname,
+            int oldRating, int delta, int newRating, String oldRank, String newRank) {}
+    record Progress(UUID matchId, UUID lobbyId, String eventType, String message,
+            int eventNumber, String status) implements MatchEvent {}
+    record Created(UUID matchId, UUID lobbyId, String mode, String region, String rank,
+            int playerCount, List&lt;MatchPlayer&gt; players,
+            UUID winnerPlayerId, String winnerNickname, String resultSummary) implements MatchEvent {}
+    record Enriched(UUID matchId, String winnerNickname,
+            List&lt;PlayerRankChange&gt; changes, String summary) implements MatchEvent {}
+}
+// аналогично: PlayerEvent.Created, LobbyEvent.{Created,PlayerJoined,Formed,Disbanded}</code></pre></div>
+    </div>
+  </div>
+  <div class="callout important"><span class="ico">🆔</span><div class="body"><b>Важно: <code>eventId</code> ≠ <code>matchId</code> / <code>lobbyId</code> / <code>playerId</code></b><p><code>eventId</code> – это идентификатор <strong>самого сообщения</strong> в RabbitMQ (генерируется в <code>EventMetadata.create</code>). Он нужен для трассировки и <strong>дедупликации</strong> (чтобы не обработать одно письмо дважды). А <code>matchId</code> – это id доменной сущности «матч». Два разных мира идентификаторов!</p></div></div>
+
+  <h3>Routing keys – «темы» сообщений</h3>
+  <p>Exchange у нас <strong>topic</strong>: каждое сообщение помечено ключом вроде <code>match.finished</code>, а очереди подписываются по шаблону. Шаблон <code>#</code> значит «все события», <code>match.finished</code> – «только это».</p>
+  <div class="pills">
+    <span class="pill">player.created</span><span class="pill">lobby.created</span><span class="pill">lobby.player-joined</span>
+    <span class="pill">lobby.formed</span><span class="pill">lobby.disbanded</span><span class="pill">match.progress</span>
+    <span class="pill">match.finished</span><span class="pill">match.enriched</span>
+  </div>
+
+  <h3>Топология: exchange, очереди, привязки, DLQ</h3>
+  <div class="diagram">
+    <div class="mmd">
+graph LR
+  MM["matchmaking (publisher)"]:::p -->|routing key| EX{{"topic exchange matchmaking.events"}}:::ex
+  EX -->|любой ключ| Q1["q.matchmaking.match-log.events"]:::q --> LOG["match-log-service"]:::s
+  EX -->|любой ключ| Q3["q.matchmaking.notifications.all"]:::q --> NTF["notification-service"]:::s
+  EX -->|match.finished| Q2["q.matchmaking.enrichment.match-finished"]:::q --> ENR["enrichment-client"]:::s
+  ENR -.->|match enriched| EX
+  Q1 -.->|при сбое| DLX{{"DLX matchmaking.events.dlx"}}:::dlx
+  Q2 -.-> DLX
+  Q3 -.-> DLX
+  classDef p fill:#1d2336,stroke:#46507a,color:#e8ecf6;
+  classDef ex fill:#2a1f33,stroke:#ff7ac6,color:#ff7ac6;
+  classDef q fill:#10261f,stroke:#3ad17e,color:#d6ffe9;
+  classDef s fill:#1d2336,stroke:#46507a,color:#e8ecf6;
+  classDef dlx fill:#33231f,stroke:#f2c14e,color:#f2c14e;
+    </div>
+    <pre class="fallback">matchmaking --(routing key)--> [topic exchange: matchmaking.events]
+  --#--------------> q.matchmaking.match-log.events     --> match-log-service
+  --#--------------> q.matchmaking.notifications.all     --> notification-service
+  --match.finished--> q.matchmaking.enrichment.match-finished --> enrichment-client --(match.enriched)--> exchange
+каждая очередь имеет .dlq (dead-letter) на DLX matchmaking.events.dlx</pre>
+    <div class="cap">Topic exchange раздаёт сообщения по ключам; «битые» сообщения уходят в dead-letter (DLQ).</div>
+  </div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Очередь</th><th>Шаблон</th><th>Кто слушает</th><th>Зачем</th></tr></thead>
+    <tbody>
+      <tr><td><code>q.matchmaking.match-log.events</code></td><td><code>#</code></td><td>match-log-service</td><td>журнал всех событий</td></tr>
+      <tr><td><code>q.matchmaking.notifications.all</code></td><td><code>#</code></td><td>notification-service</td><td>живые уведомления</td></tr>
+      <tr><td><code>q.matchmaking.enrichment.match-finished</code></td><td><code>match.finished</code></td><td>enrichment-client</td><td>только финал матча → gRPC</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout tip"><span class="ico">💀</span><div class="body"><b>Что такое DLQ (Dead-Letter Queue)</b><p>Если сообщение не удалось обработать (после повторных попыток), оно не теряется и не зацикливается – его перенаправляют в «очередь мёртвых писем» на отдельный exchange <code>matchmaking.events.dlx</code>. Там его можно изучить вручную.</p></div></div>
+
+  <h3>Публикация событий в <code>matchmaking</code></h3>
+  <p>Конфигурация создаёт exchange и JSON-конвертер; три publisher-класса заворачивают payload в <code>EventEnvelope</code> и шлют с нужным routing key.</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="pub-1">RabbitMQConfig</button><button class="code-tab" data-target="pub-2">MatchEventPublisher</button><span class="code-spacer"></span><span class="code-meta">matchmaking · config/ , event/</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes">
+      <div class="code-pane active" id="pub-1"><pre><code class="language-java">@Bean MessageConverter jsonMessageConverter(JsonMapper m) { return new JacksonJsonMessageConverter(m); }
+
+@Bean RabbitTemplate rabbitTemplate(ConnectionFactory cf, MessageConverter conv) {
+    RabbitTemplate t = new RabbitTemplate(cf); t.setMessageConverter(conv); return t;  // шлём JSON
+}
+
+@Bean TopicExchange eventsExchange() {
+    return ExchangeBuilder.topicExchange(RoutingKeys.EXCHANGE).durable(true).build();
+}</code></pre></div>
+      <div class="code-pane" id="pub-2"><pre><code class="language-java">public void publishCreated(MatchResponse match) {
+    var event = new MatchEvent.Finished(match.id(), match.lobbyId(), match.mode(),
+            match.region(), match.rank(), match.players().size(), /* players */ ...,
+            match.winner() == null ? null : match.winner().id(),
+            match.winner() == null ? "Unknown" : match.winner().nickname(),
+            buildResultSummary(match));
+    send(RoutingKeys.MATCH_FINISHED, event);
+}
+
+private void send(String routingKey, MatchEvent event) {
+    EventEnvelope&lt;MatchEvent&gt; envelope = EventEnvelope.wrap(event, "matchmaking", routingKey);
+    rabbitTemplate.convertAndSend(RoutingKeys.EXCHANGE, routingKey, envelope);
+    log.info("Event sent: {} [eventId={}]", routingKey, envelope.metadata().eventId());
+}</code></pre></div>
+    </div>
+  </div>
+  <div class="callout mistake"><span class="ico">🌐</span><div class="body"><b>Типичная ошибка: логи на кириллице</b><p>Все runtime-логи в Java – <strong>на английском ASCII</strong> (<code>Event sent: ...</code>), иначе в Windows/IntelliJ Terminal будет «кракозябра». Русский – только в объяснениях и README, не в коде логов.</p></div></div>
+
+  <h3>Как запустить и увидеть RabbitMQ</h3>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="mqrun-1">PowerShell</button><span class="code-spacer"></span><span class="code-meta">Console 1</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes"><div class="code-pane active" id="mqrun-1"><pre><code class="language-bash"># поднять RabbitMQ в Docker (один раз создать)
+docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:4-management
+# в следующий раз достаточно:
+docker start rabbitmq
+# UI: http://localhost:15672  (логин guest / пароль guest)</code></pre></div></div>
+  </div>
+
+  <div class="quiz" data-quiz="mq">
+    <div class="q-head"><span class="badge">Мини-квиз</span> RabbitMQ</div>
+    <div class="q-text">Очередь <code>match-log</code> привязана по шаблону <code>#</code>. Что это значит?</div>
+    <button class="opt" data-correct="0">Только события <code>match.*</code></button>
+    <button class="opt" data-correct="1">Все события любого типа</button>
+    <button class="opt" data-correct="0">Только <code>match.finished</code></button>
+    <button class="opt" data-correct="0">Ничего, очередь пустая</button>
+    <div class="explain"><b>Верно.</b> В topic-exchange <code>#</code> совпадает с любым routing key. Поэтому журнал видит всё: и player.*, и lobby.*, и match.*. А enrichment слушает узко – только <code>match.finished</code>.</div>
+  </div>
+</section>
+<!-- ================================================================
+     STAGE 5 – MATCH-LOG-SERVICE
+     ================================================================ -->
+<section id="stage-matchlog">
+  <span class="sec-kicker">Этап 3.5 · Журнал</span>
+  <h2>Этап 5. <code>match-log-service</code> – журнал событий</h2>
+
+  <h3>Почему «audit-service» стал «match-log-service»</h3>
+  <p>В эталоне преподавателя этот сервис назывался <code>audit-service</code> (аудит действий с книгами). Логика та же – слушать все события и записывать их – поэтому в нашей предметной области его переименовали в <code>match-log-service</code> (журнал матчей). Это первый <strong>consumer</strong> (потребитель) событий: он ничего не инициирует, только реагирует.</p>
+
+  <div class="grid cols-2">
+    <div class="card"><h4>✅ Что он делает</h4><ul><li>слушает <strong>все</strong> события (<code>#</code>);</li><li>хранит их в in-memory журнале по порядку;</li><li>отдаёт журнал по REST;</li><li>отбрасывает дубликаты по <code>eventId</code>.</li></ul></div>
+    <div class="card"><h4>🚫 Чего он НЕ делает</h4><ul><li>ничего не считает и не меняет;</li><li>не вызывает другие сервисы;</li><li>не хранит данные в БД;</li><li>не влияет на ход матча.</li></ul></div>
+  </div>
+
+  <div class="filecard">
+    <div class="path">🌐 http://localhost:8081/api/match-log</div>
+    <div class="rows">
+      <div class="k">Что делает</div><div class="v">Возвращает JSON со списком записей журнала (последние сверху) и счётчиком.</div>
+      <div class="k">Почему отдельный сервис</div><div class="v">«История» – отдельная ответственность. Её можно масштабировать/перезапускать независимо от matchmaking.</div>
+      <div class="k">Как проверить</div><div class="v">Создать игроков и лобби, затем открыть адрес – должны появиться записи <code>player.created</code>, <code>lobby.*</code>, <code>match.*</code>.</div>
+    </div>
+  </div>
+
+  <h3>Слушатель и хранилище</h3>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="log-1">MatchLogEventListener</button><button class="code-tab" data-target="log-2">MatchLogStorage</button><button class="code-tab" data-target="log-3">REST controller</button><span class="code-spacer"></span><span class="code-meta">match-log-service</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes">
+      <div class="code-pane active" id="log-1"><pre><code class="language-java">@RabbitListener(queues = "q.matchmaking.match-log.events")
+public void handleEvent(Message message) {
+    JsonNode root = jsonMapper.readTree(message.getBody());
+    EventMetadata metadata = jsonMapper.treeToValue(root.get("metadata"), EventMetadata.class);
+
+    if (matchLogStorage.isDuplicate(metadata.eventId())) {   // дедупликация по eventId
+        log.warn("Duplicate event skipped: eventId={}", metadata.eventId());
+        return;
+    }
+    String description = buildDescription(metadata.eventType(), root.get("payload"));
+    MatchLogEntry entry = matchLogStorage.save(new MatchLogEntry(/* seq */ 0,
+            metadata.eventId(), metadata.eventType(), metadata.source(),
+            metadata.timestamp(), Instant.now(), description));
+    log.info("[MATCH-LOG #{}] {} | {}", entry.sequenceNumber(), metadata.eventType(), description);
+}</code></pre></div>
+      <div class="code-pane" id="log-2"><pre><code class="language-java">// потокобезопасное in-memory хранилище (без БД)
+private final ConcurrentLinkedDeque&lt;MatchLogEntry&gt; entries = new ConcurrentLinkedDeque&lt;&gt;();
+private final AtomicLong sequence = new AtomicLong(0);
+private final Set&lt;String&gt; processedEventIds = ConcurrentHashMap.newKeySet();
+
+public boolean isDuplicate(String eventId) { return !processedEventIds.add(eventId); }
+public MatchLogEntry save(MatchLogEntry e) {
+    MatchLogEntry numbered = /* присвоить sequence.incrementAndGet() */;
+    entries.addFirst(numbered);   // новые сверху
+    return numbered;
+}</code></pre></div>
+      <div class="code-pane" id="log-3"><pre><code class="language-java">@RestController
+@RequestMapping("/api/match-log")
+public class MatchLogController {
+    @GetMapping
+    public Map&lt;String, Object&gt; getMatchLog(@RequestParam(defaultValue = "100") int limit) {
+        List&lt;MatchLogEntry&gt; entries = matchLogStorage.findLatest(limit);
+        return Map.of("totalEntries", matchLogStorage.count(),
+                      "showing", entries.size(), "entries", entries);
+    }
+}</code></pre></div>
+    </div>
+  </div>
+
+  <div class="callout important"><span class="ico">🆔</span><div class="body"><b>Здесь становится понятно, зачем нужен <code>eventId</code></b><p>Если RabbitMQ доставит сообщение дважды (бывает при повторных попытках), <code>isDuplicate(eventId)</code> отбросит копию. Дедупликация – главный практический смысл <code>eventId</code>.</p></div></div>
+
+  <h3>История ≠ живые уведомления</h3>
+  <div class="callout remember"><span class="ico">📜</span><div class="body"><b>Запомнить</b><p><code>match-log-service</code> – это <strong>история событий</strong> (пока сервис жив): можно открыть в любой момент и посмотреть, что было. А <code>notification-service</code> (Этап 7) – это <strong>живые</strong> уведомления, плюс простой UI-кэш последних 50 карточек в <code>localStorage</code>. Разные задачи – разные сервисы.</p></div></div>
+</section>
+
+<!-- ================================================================
+     STAGE 6 – gRPC ENRICHMENT
+     ================================================================ -->
+<section id="stage-grpc">
+  <span class="sec-kicker">Этап 3.6 · gRPC</span>
+  <h2>Этап 6. gRPC – contract-first обогащение рейтинга</h2>
+
+  <h3>Зачем gRPC и почему есть и клиент, и сервер</h3>
+  <p>RabbitMQ хорош для «оповестить всех». Но иногда нужен <strong>точный синхронный вызов</strong> «посчитай и верни ответ» между двумя сервисами. Для этого – <strong>gRPC</strong>: быстрый бинарный протокол поверх HTTP/2, описанный контрактом <code>.proto</code>. У нас два участника:</p>
+  <div class="grid cols-2">
+    <div class="card"><h4>🖥️ <code>grpc-match-analytics-server</code></h4><p>gRPC-<strong>сервер</strong> на порту <code>9090</code>. Умеет одно: посчитать изменения рейтинга после матча. Не слушает RabbitMQ.</p></div>
+    <div class="card"><h4>🔌 <code>grpc-match-enrichment-client</code></h4><p>gRPC-<strong>клиент</strong> и одновременно RabbitMQ-<strong>мост</strong>. Ловит <code>match.finished</code>, зовёт сервер, публикует <code>match.enriched</code>.</p></div>
+  </div>
+
+  <h3>Контракт <code>.proto</code> (модуль <code>matchmaking-grpc-contract</code>)</h3>
+  <p>Снова «сначала контракт». Из этого файла Maven (плагин protobuf) <strong>генерирует Java-классы</strong> – и сервер, и клиент используют одни и те же сгенерированные типы.</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="proto-1">match_analytics.proto</button><span class="code-spacer"></span><span class="code-meta">matchmaking-grpc-contract · src/main/proto/</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes"><div class="code-pane active" id="proto-1"><pre class="collapsed"><code class="language-protobuf">syntax = "proto3";
+package matchanalytics;
+option java_multiple_files = true;
+option java_package = "edu.rutmiit.demo.matchmakinggrpc";
+
+// унарный RPC: один запрос -> один ответ
+service MatchRankEnrichment {
+  rpc CalculateRankChanges(CalculateRankChangesRequest) returns (RankChangesResponse);
+}
+
+message MatchPlayer {
+  string player_id = 1;  string nickname = 2;
+  int32  rating = 3;     string rank = 4;  bool winner = 5;
+}
+message CalculateRankChangesRequest {
+  string match_id = 1;  string mode = 2;  string region = 3;
+  string winner_player_id = 4;  string winner_nickname = 5;
+  repeated MatchPlayer players = 6;
+}
+message PlayerRankChange {
+  string player_id = 1;  string nickname = 2;
+  int32 old_rating = 3;  int32 delta = 4;  int32 new_rating = 5;
+  string old_rank = 6;   string new_rank = 7;
+}
+message RankChangesResponse {
+  string match_id = 1;  string winner_nickname = 2;
+  repeated PlayerRankChange changes = 3;  string summary = 4;
+}</code></pre></div></div>
+    <div class="code-foot"><button class="expandbtn">▼ Показать полностью</button></div>
+  </div>
+  <div class="code-notes">
+    <div class="cn"><b>service</b><span>описывает удалённый сервис и его методы (rpc). Здесь один – <code>CalculateRankChanges</code>.</span></div>
+    <div class="cn"><b>message</b><span>структура данных (как DTO). Числа <code>= 1, = 2</code> – это номера полей в бинарном формате.</span></div>
+    <div class="cn"><b>repeated</b><span>«список/массив». <code>repeated MatchPlayer players</code> = список игроков.</span></div>
+    <div class="cn"><b>java_package</b><span>куда сложить сгенерированные классы: <code>edu.rutmiit.demo.matchmakinggrpc</code>.</span></div>
+  </div>
+
+  <h3>Сервер: как считается рейтинг (+25 / −10)</h3>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="gsrv-1">MatchAnalyticsServiceImpl</button><button class="code-tab" data-target="gsrv-2">запуск gRPC-сервера</button><span class="code-spacer"></span><span class="code-meta">grpc-match-analytics-server</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes">
+      <div class="code-pane active" id="gsrv-1"><pre class="collapsed"><code class="language-java">public class MatchAnalyticsServiceImpl extends MatchRankEnrichmentGrpc.MatchRankEnrichmentImplBase {
+    @Override
+    public void calculateRankChanges(CalculateRankChangesRequest request,
+                                     StreamObserver&lt;RankChangesResponse&gt; responseObserver) {
+        RankChangesResponse.Builder response = RankChangesResponse.newBuilder()
+                .setMatchId(request.getMatchId())
+                .setWinnerNickname(request.getWinnerNickname());
+
+        for (int i = 0; i &lt; request.getPlayersCount(); i++) {
+            MatchPlayer p = request.getPlayers(i);
+            int delta = p.getWinner() ? 25 : -10;             // победитель +25, остальные -10
+            int newRating = Math.max(0, p.getRating() + delta); // не уходим в минус
+            String newRank = rankByRating(newRating);           // те же пороги, что в matchmaking
+
+            response.addChanges(PlayerRankChange.newBuilder()
+                    .setPlayerId(p.getPlayerId()).setNickname(p.getNickname())
+                    .setOldRating(p.getRating()).setDelta(delta).setNewRating(newRating)
+                    .setOldRank(p.getRank()).setNewRank(newRank).build());
+        }
+        responseObserver.onNext(response.build());   // отдать ответ
+        responseObserver.onCompleted();
+    }
+}</code></pre></div>
+      <div class="code-pane" id="gsrv-2"><pre><code class="language-java">@Component
+public class GrpcServerLifecycle implements SmartLifecycle {
+    @Value("${grpc.server.port:9090}") private int grpcPort;
+    private Server server;
+
+    @Override public void start() {
+        server = ServerBuilder.forPort(grpcPort)
+                .addService(new MatchAnalyticsServiceImpl()).build().start();
+        log.info("gRPC server started on port {}", grpcPort);
+    }
+    // HTTP/actuator порт сервиса – 8083, а сам gRPC – 9090 (это РАЗНЫЕ порты!)
+}</code></pre></div>
+    </div>
+  </div>
+
+  <h3>Клиент-мост: <code>match.finished</code> → gRPC → <code>match.enriched</code></h3>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="gcli-1">MatchFinishedListener</button><button class="code-tab" data-target="gcli-2">gRPC client config</button><span class="code-spacer"></span><span class="code-meta">grpc-match-enrichment-client</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes">
+      <div class="code-pane active" id="gcli-1"><pre class="collapsed"><code class="language-java">@RabbitListener(queues = "q.matchmaking.enrichment.match-finished")
+public void handleMatchFinished(Message message) {
+    // 1) распарсить событие match.finished
+    MatchEvent.Finished m = jsonMapper.treeToValue(root.get("payload"), MatchEvent.Finished.class);
+
+    // 2) собрать gRPC-запрос
+    CalculateRankChangesRequest.Builder req = CalculateRankChangesRequest.newBuilder()
+            .setMatchId(m.matchId().toString()).setWinnerNickname(m.winnerNickname());
+    for (MatchEvent.MatchPlayer p : m.players()) {
+        req.addPlayers(MatchPlayer.newBuilder()
+            .setPlayerId(p.playerId().toString()).setNickname(p.nickname())
+            .setRating(p.rating()).setRank(p.rank())
+            .setWinner(p.playerId().equals(m.winnerPlayerId())).build());
+    }
+    // 3) СИНХРОННЫЙ удалённый вызов (blocking stub) -> сервер :9090
+    RankChangesResponse resp = rankStub.calculateRankChanges(req.build());
+
+    // 4) превратить ответ в доменное событие и опубликовать match.enriched
+    MatchEvent.Enriched enriched = new MatchEvent.Enriched(
+            UUID.fromString(resp.getMatchId()), resp.getWinnerNickname(),
+            /* map resp.getChangesList() -> PlayerRankChange */, resp.getSummary());
+    enrichmentPublisher.publishEnriched(enriched);   // -> RabbitMQ match.enriched
+}</code></pre></div>
+      <div class="code-pane" id="gcli-2"><pre><code class="language-java">@Bean ManagedChannel managedChannel() {
+    return ManagedChannelBuilder.forAddress(grpcHost, grpcPort) // localhost:9090
+            .usePlaintext().build();                            // без TLS – учебно
+}
+@Bean MatchRankEnrichmentGrpc.MatchRankEnrichmentBlockingStub matchRankStub(ManagedChannel ch) {
+    return MatchRankEnrichmentGrpc.newBlockingStub(ch);
+}</code></pre></div>
+    </div>
+  </div>
+
+  <h3>Вся цепочка обогащения</h3>
+  <div class="diagram">
+    <div class="mmd">
+sequenceDiagram
+  participant MM as matchmaking
+  participant MQ as RabbitMQ
+  participant EN as enrichment-client 8082
+  participant AN as analytics-server 9090
+  MM->>MQ: publish match.finished (финал матча)
+  MQ->>EN: доставка в очередь enrichment
+  EN->>AN: gRPC CalculateRankChanges(players)
+  AN-->>EN: RankChangesResponse, плюс 25 минус 10, новые ранги
+  EN->>MQ: publish match.enriched
+  MQ->>MM: matchmaking слушает match.enriched и обновляет players
+    </div>
+    <pre class="fallback">matchmaking --match.finished--> RabbitMQ --> enrichment-client
+enrichment-client --gRPC--> analytics-server --(+25/-10)--> enrichment-client
+enrichment-client --match.enriched--> RabbitMQ (читают log и notification)</pre>
+    <div class="cap">RabbitMQ запускает процесс, gRPC делает расчёт, RabbitMQ разносит результат.</div>
+  </div>
+
+  <div class="callout important"><span class="ico">🧊</span><div class="body"><b>Ключевой нюанс: gRPC НЕ обновляет хранилище <code>matchmaking</code></b>
+  <p>После расчёта <strong>рейтинги игроков в <code>matchmaking</code> обновляются</strong>. Сервис слушает <code>match.enriched</code>, читает изменения рейтинга и меняет игроков в своей <code>players</code> HashMap. Это сделано максимально просто: без базы данных, без отдельного сервиса записи и без усложнения архитектуры.</p></div></div>
+
+  <h3>Что считает сервер – наглядно</h3>
+  <div class="chart-wrap tall"><canvas id="ratingChart"></canvas></div>
+  <pre class="fallback">Пример: матч из 3 игроков (старт по 1210). Победитель: 1210 -> 1235 (+25). Двое проигравших: 1210 -> 1200 (-10).</pre>
+
+  <div class="quiz" data-quiz="grpc">
+    <div class="q-head"><span class="badge">Мини-квиз</span> gRPC</div>
+    <div class="q-text">После обогащения вы открываете <code>/api/players</code> и видите старый рейтинг. Почему?</div>
+    <button class="opt" data-correct="0">Это баг, рейтинг должен был обновиться</button>
+    <button class="opt" data-correct="1">Рейтинг обновится после того, как <code>matchmaking</code> обработает событие <code>match.enriched</code></button>
+    <button class="opt" data-correct="0">Потому что нет базы данных</button>
+    <button class="opt" data-correct="0">Потому что gRPC-сервер не запущен</button>
+    <div class="explain"><b>Верно.</b> Enrichment-client публикует <code>match.enriched</code>, а <code>matchmaking</code> слушает это событие и применяет изменения к игрокам в памяти.</div>
+  </div>
+</section>
+<script>
+/* график рейтинга до/после матча (Этап 6) */
+registerChart(function(){
+  const el=document.getElementById('ratingChart'); if(!el) return null;
+  const c=chartColors();
+  return new Chart(el,{
+    type:'bar',
+    data:{
+      labels:['Winner (Artem)','Loser (Misha)','Loser (Sasha)'],
+      datasets:[
+        {label:'Рейтинг ДО', data:[1210,1180,1270], backgroundColor:c.grid, borderRadius:6},
+        {label:'Рейтинг ПОСЛЕ', data:[1235,1170,1260], backgroundColor:[c.green,c.red,c.red], borderRadius:6}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:c.text}},
+        title:{display:true,text:'gRPC расчёт: победитель +25, проигравшие −10 (rank пересчитывается)',color:c.text}},
+      scales:{y:{min:1100,ticks:{color:c.text},grid:{color:c.grid}},x:{ticks:{color:c.text},grid:{display:false}}}}
+  });
+});
+</script>
+<!-- ================================================================
+     STAGE 7 – WEBSOCKET NOTIFICATIONS
+     ================================================================ -->
+<section id="stage-websocket">
+  <span class="sec-kicker">Этап 3.7 · WebSocket</span>
+  <h2>Этап 7. <code>notification-service</code> – живые WebSocket-уведомления</h2>
+
+  <h3>Зачем WebSocket и чем он лучше «опроса» (polling)</h3>
+  <p>Как показать в браузере уведомление «матч завершён» <em>сразу</em>? С обычным REST браузер пришлось бы каждую секунду спрашивать «ну что, есть новости?» (polling) – это расточительно. <strong>WebSocket</strong> – это <strong>постоянное двустороннее соединение</strong>: браузер один раз подключился, и теперь <strong>сервер сам</strong> шлёт сообщения, как только они появятся.</p>
+  <div class="grid cols-2">
+    <div class="card"><h4>REST polling</h4><p>Браузер дёргает сервер «есть новое?» снова и снова. Задержки, лишний трафик.</p></div>
+    <div class="card"><h4>WebSocket push</h4><p>Соединение держится открытым. Сервер пушит сообщение мгновенно. Идеально для уведомлений.</p></div>
+  </div>
+
+  <h3>Паттерн «событие RabbitMQ → push в браузер»</h3>
+  <p><code>notification-service</code> – это мост между шиной событий и браузером: он слушает RabbitMQ (как <code>match-log</code>) и <strong>рассылает</strong> полученное всем подключённым WebSocket-клиентам.</p>
+  <div class="diagram">
+    <div class="mmd">
+graph LR
+  MQ{{"RabbitMQ (все события)"}}:::ex --> L["EventNotificationListener"]:::s
+  L --> H["NotificationWebSocketHandler broadcast"]:::s
+  H -->|WebSocket push| B1(["Браузер 1"]):::ext
+  H --> B2(["Браузер 2"]):::ext
+  classDef ex fill:#2a1f33,stroke:#ff7ac6,color:#ff7ac6;
+  classDef s fill:#1d2336,stroke:#46507a,color:#e8ecf6;
+  classDef ext fill:#10261f,stroke:#3ad17e,color:#d6ffe9;
+    </div>
+    <pre class="fallback">RabbitMQ(#) -> EventNotificationListener -> WebSocketHandler.broadcast() -> все браузеры</pre>
+  </div>
+
+  <h3>Конфигурация и обработчик WebSocket</h3>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="ws-1">WebSocketConfig</button><button class="code-tab" data-target="ws-2">Handler.broadcast</button><span class="code-spacer"></span><span class="code-meta">notification-service</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes">
+      <div class="code-pane active" id="ws-1"><pre><code class="language-java">@Configuration
+@EnableWebSocket
+public class WebSocketConfig implements WebSocketConfigurer {
+    private final NotificationWebSocketHandler handler;
+    @Override public void registerWebSocketHandlers(WebSocketHandlerRegistry r) {
+        r.addHandler(handler, "/ws/notifications")  // endpoint ws://localhost:8084/ws/notifications
+         .setAllowedOrigins("*");                   // учебно: разрешаем любой origin
+    }
+}</code></pre></div>
+      <div class="code-pane" id="ws-2"><pre><code class="language-java">// все открытые соединения хранятся в потокобезопасном множестве
+private final Set&lt;WebSocketSession&gt; sessions = ConcurrentHashMap.newKeySet();
+
+public void broadcast(String json) {
+    TextMessage message = new TextMessage(json);
+    for (WebSocketSession s : sessions) {
+        if (!s.isOpen()) { sessions.remove(s); continue; }
+        try { s.sendMessage(message); }                 // рассылка КАЖДОМУ клиенту
+        catch (IOException e) { sessions.remove(s); }
+    }
+}
+// + afterConnectionEstablished/Closed (учёт сессий), handleTextMessage (ping -> pong)</code></pre></div>
+    </div>
+  </div>
+
+  <h3>Слушатель: какие события становятся уведомлениями</h3>
+  <p>Слушатель подписан на <strong>все</strong> события (<code>#</code>) и строит понятный человеку заголовок и описание. Отдельный фильтр для <code>MATCH_STARTED</code>/<code>MATCH_FINISHED</code> больше не нужен: эти события не публикуются в RabbitMQ как <code>match.progress</code>, а остаются только внутри <code>match.events</code>.</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="wsl-1">EventNotificationListener</button><button class="code-tab" data-target="wsl-2">NotificationPayload</button><span class="code-spacer"></span><span class="code-meta">notification-service</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes">
+      <div class="code-pane active" id="wsl-1"><pre><code class="language-java">@RabbitListener(queues = RabbitMQConfig.NOTIFICATIONS_QUEUE) // q.matchmaking.notifications.all
+public void handleEvent(Message message) {
+    EventMetadata metadata = /* parse */;
+    if (!processedEventIds.add(metadata.eventId())) return;   // дедуп по eventId
+
+    String json = jsonMapper.writeValueAsString(new NotificationPayload(
+        "NOTIFICATION", metadata.eventId(), metadata.eventType(),
+        buildTitle(metadata.eventType()), buildDescription(metadata.eventType(), payload),
+        resolveIcon(...), resolveLevel(...), metadata.source(), ...));
+    webSocketHandler.broadcast(json);   // -> всем браузерам
+}</code></pre></div>
+      <div class="code-pane" id="wsl-2"><pre><code class="language-java">public record NotificationPayload(
+    String type, String eventId, String eventType,
+    String title, String description, String icon, String level,
+    String source, String eventTimestamp, String receivedAt) {}</code></pre></div>
+    </div>
+  </div>
+
+  <h3>Статичный UI (<code>static/index.html</code>) – без фреймворков</h3>
+  <p>Фронтенд – один HTML-файл с «голым» JavaScript (как в эталоне). Он открывает WebSocket, слушает сообщения и добавляет карточки уведомлений. При обрыве – авто-переподключение с увеличивающейся паузой.</p>
+  <div class="codeblock">
+    <div class="code-tabbar"><button class="code-tab active" data-target="wsui-1">connect()</button><button class="code-tab" data-target="wsui-2">addNotification()</button><button class="code-tab" data-target="wsui-3">reconnect</button><span class="code-spacer"></span><span class="code-meta">notification-service · static/index.html</span><button class="copybtn"><span class="cl">Copy</span></button></div>
+    <div class="code-panes">
+      <div class="code-pane active" id="wsui-1"><pre><code class="language-javascript">const WS_URL = `ws://${window.location.host}/ws/notifications`;
+function connect() {
+  ws = new WebSocket(WS_URL);
+  ws.onopen    = () => setStatus('connected', 'Connected');
+  ws.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    if (data.type === 'CONNECTED' || data.type === 'PONG') return; // служебные
+    addNotification(data);                                          // показать карточку
+  };
+  ws.onclose   = () => { setStatus('disconnected'); scheduleReconnect(); };
+}</code></pre></div>
+      <div class="code-pane" id="wsui-2"><pre><code class="language-javascript">function addNotification(data) {
+  notificationCount++;
+  const card = document.createElement('div');
+  card.className = `card ${data.level || 'info'}`;     // цвет по уровню
+  card.innerHTML = `&lt;div class="title"&gt;${data.title}&lt;/div&gt;
+                    &lt;div class="description"&gt;${data.description}&lt;/div&gt;
+                    &lt;div class="meta"&gt;event: ${data.eventType} · id: ${data.eventId}&lt;/div&gt;`;
+  list.prepend(card);   // новые сверху, в памяти страницы
+}</code></pre></div>
+      <div class="code-pane" id="wsui-3"><pre><code class="language-javascript">function scheduleReconnect() {
+  const delay = Math.min(1000 * Math.pow(2, reconnectAttempt), 30000); // 1s,2s,4s... до 30s
+  reconnectAttempt++;
+  setTimeout(connect, delay);
+}</code></pre></div>
+    </div>
+  </div>
+
+  <div class="filecard">
+    <div class="path">🌐 http://localhost:8084/  ·  ws://localhost:8084/ws/notifications</div>
+    <div class="rows"><div class="k">Что делает</div><div class="v">Открывает страницу, подключается по WebSocket и показывает живые карточки уведомлений.</div>
+      <div class="k">Как проверить</div><div class="v">Открыть страницу, затем создать игроков/лобби в Swagger – карточки появятся в реальном времени.</div></div>
+  </div>
+
+  <div class="callout important"><span class="ico">🔄</span><div class="body"><b>Почему уведомления остаются после F5</b>
+  <p>Страница сохраняет последние 50 карточек в <code>localStorage</code>. После обычного обновления браузер снова показывает недавние уведомления. Это не полноценная история на сервере, а простой UI-кэш. <strong>История</strong> всё равно лежит в <code>match-log-service</code> (Этап 5). Не путайте две роли.</p></div></div>
+
+  <div class="callout simplify"><span class="ico">🗣️</span><div class="body"><b>Как объяснять события «по-человечески»</b>
+  <p><code>lobby.formed</code> на защите удобнее называть <strong>«матч начался»</strong> (матч начался – ведь он стартует из лобби). <code>match.progress</code> – это <strong>живые события боя</strong> (удары, лут), которые и делают ленту «живой». А <code>match.finished</code> – «матч завершён, готов финал».</p></div></div>
+
+  <div class="callout tip"><span class="ico">🖥️</span><div class="body"><b>Что UI показывает, а что – нет</b><p>В ленте – только <strong>доменные</strong> уведомления (создан игрок, начался матч, события боя, обогащение). Технические строки логов остаются в <strong>консоли</strong> сервиса, а не в браузере. UI намеренно «чистый».</p></div></div>
+
+  <div class="quiz" data-quiz="ws">
+    <div class="q-head"><span class="badge">Мини-квиз</span> WebSocket</div>
+    <div class="q-text">Вы обновили страницу уведомлений (F5). Где хранится настоящая история событий?</div>
+    <button class="opt" data-correct="0">Только в localStorage браузера</button>
+    <button class="opt" data-correct="1">В <code>match-log-service</code>: http://localhost:8081/api/match-log</button>
+    <button class="opt" data-correct="0">В базе данных notification-service</button>
+    <button class="opt" data-correct="0">В RabbitMQ навсегда</button>
+    <div class="explain"><b>Верно.</b> UI хранит последние 50 карточек в localStorage, но настоящая история событий – отдельная ответственность <code>match-log-service</code>.</div>
+  </div>
+</section>
+<!-- ================================================================
+     SECTION 4 – END-TO-END
+     ================================================================ -->
+<section id="e2e">
+  <span class="sec-kicker">Раздел 4 · Всё вместе</span>
+  <h2>End-to-end сценарий: запуск и демонстрация</h2>
+  <p>Теперь соберём всё воедино. Сначала – интерактивная анимация пути одного матча через все сервисы. Потом – реальные команды запуска и пошаговая демонстрация.</p>
+
+  <h3>Анимация: путь события через систему</h3>
+  <p>Нажмите <strong>▶ Запустить</strong> (или «Шаг ▶», чтобы идти вручную) и проследите, как данные идут от игрока до браузера.</p>
+  <div class="flow">
+    <div class="flow-controls">
+      <button id="flowPlay" class="primary">▶ Запустить</button>
+      <button id="flowStep">Шаг ▶</button>
+      <button id="flowReset">⟲ Сброс</button>
+      <div class="step-label" id="flowStepLabel">Нажмите <b>▶ Запустить</b>, чтобы проследить путь события через все сервисы.</div>
+    </div>
+    <div class="flow-stage">
+      <div class="flow-node" data-node="client"><div class="icon">🎮</div><div class="name">Клиент</div><div class="role">Swagger / GraphiQL</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node" data-node="mm"><div class="icon">⚔️</div><div class="name">matchmaking</div><div class="role">REST + GraphQL</div><div class="port">:8080</div></div>
+    </div>
+    <div class="flow-bus">🐰 RabbitMQ · topic exchange <b>matchmaking.events</b></div>
+    <div class="flow-stage">
+      <div class="flow-node" data-node="log"><div class="icon">📜</div><div class="name">match-log</div><div class="role">журнал (#)</div><div class="port">:8081</div></div>
+      <div class="flow-node" data-node="enr"><div class="icon">🔌</div><div class="name">enrichment</div><div class="role">match.finished</div><div class="port">:8082</div></div>
+      <div class="flow-arrow">⇄</div>
+      <div class="flow-node" data-node="an"><div class="icon">🧮</div><div class="name">analytics</div><div class="role">gRPC +25/−10</div><div class="port">:9090</div></div>
+      <div class="flow-node" data-node="ntf"><div class="icon">🔔</div><div class="name">notification</div><div class="role">WebSocket (#)</div><div class="port">:8084</div></div>
+    </div>
+    <div class="flow-stage">
+      <div class="flow-arrow">↓</div>
+      <div class="flow-node" data-node="br"><div class="icon">🌐</div><div class="name">Браузер</div><div class="role">живые карточки</div></div>
+    </div>
+    <div class="flow-log" id="flowLog"></div>
+  </div>
+
+  <h3>Запуск: семь консолей IntelliJ IDEA Terminal</h3>
+  <p>Каждый сервис – отдельный процесс в отдельной вкладке терминала. Это и делает архитектуру «микросервисной». Порядок: сначала RabbitMQ, потом сборка, потом сервисы.</p>
+  <div class="codeblock">
+    <div class="code-tabbar">
+      <button class="code-tab active" data-target="run-1">1 · RabbitMQ</button>
+      <button class="code-tab" data-target="run-2">2 · Build</button>
+      <button class="code-tab" data-target="run-3">3 · matchmaking</button>
+      <button class="code-tab" data-target="run-4">4 · match-log</button>
+      <button class="code-tab" data-target="run-5">5 · analytics</button>
+      <button class="code-tab" data-target="run-6">6 · enrichment</button>
+      <button class="code-tab" data-target="run-7">7 · notification</button>
+      <span class="code-spacer"></span><button class="copybtn"><span class="cl">Copy</span></button>
+    </div>
+    <div class="code-panes">
+      <div class="code-pane active" id="run-1"><pre><code class="language-bash"># Console 1 – RabbitMQ (в Docker)
+docker start rabbitmq
+# если контейнера ещё нет:
+docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:4-management</code></pre></div>
+      <div class="code-pane" id="run-2"><pre><code class="language-bash"># Console 2 – собрать ВСЕ модули (контракты + сервисы)
+cd "C:\Users\colonialrift\Dropbox\SOP\Matchmaking Arena"
+.\mvnw.cmd clean install -DskipTests</code></pre></div>
+      <div class="code-pane" id="run-3"><pre><code class="language-bash"># Console 3 – главный сервис (REST + GraphQL)
+.\mvnw.cmd spring-boot:run -pl matchmaking -am -DskipTests</code></pre></div>
+      <div class="code-pane" id="run-4"><pre><code class="language-bash"># Console 4 – журнал событий
+.\mvnw.cmd spring-boot:run -pl match-log-service -am -DskipTests</code></pre></div>
+      <div class="code-pane" id="run-5"><pre><code class="language-bash"># Console 5 – gRPC analytics server (поднимите ДО enrichment)
+.\mvnw.cmd spring-boot:run -pl grpc-match-analytics-server -am -DskipTests</code></pre></div>
+      <div class="code-pane" id="run-6"><pre><code class="language-bash"># Console 6 – gRPC enrichment client (мост RabbitMQ<->gRPC)
+.\mvnw.cmd spring-boot:run -pl grpc-match-enrichment-client -am -DskipTests</code></pre></div>
+      <div class="code-pane" id="run-7"><pre><code class="language-bash"># Console 7 – WebSocket уведомления
+.\mvnw.cmd spring-boot:run -pl notification-service -am -DskipTests</code></pre></div>
+    </div>
+  </div>
+  <div class="callout tip"><span class="ico">⏱️</span><div class="body"><b>Порядок имеет значение для gRPC</b><p><code>grpc-match-analytics-server</code> (сервер, :9090) лучше запускать <strong>раньше</strong>, чем <code>grpc-match-enrichment-client</code> (клиент). Иначе при первом <code>match.finished</code> клиент не достучится до сервера. Остальные сервисы порядку не важны.</p></div></div>
+
+  <h3>Адреса для проверки</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Что</th><th>Адрес</th></tr></thead>
+    <tbody>
+      <tr><td>Swagger UI (REST)</td><td><code>http://localhost:8080/swagger-ui.html</code></td></tr>
+      <tr><td>GraphiQL</td><td><code>http://localhost:8080/graphiql?path=/graphql</code></td></tr>
+      <tr><td>RabbitMQ UI</td><td><code>http://localhost:15672</code> (guest / guest)</td></tr>
+      <tr><td>Журнал матчей</td><td><code>http://localhost:8081/api/match-log</code></td></tr>
+      <tr><td>Уведомления (WebSocket UI)</td><td><code>http://localhost:8084/</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Демо-сценарий за 8 шагов</h3>
+  <div class="card">
+    <ol>
+      <li>Откройте <strong>Notification UI</strong> (<code>:8084</code>) – пусть висит, будем смотреть живые карточки.</li>
+      <li>Откройте <strong>Swagger</strong> (<code>:8080</code>).</li>
+      <li>Создайте трёх игроков (<code>POST /api/players</code>): <strong>Artem</strong> 1210 EU SILVER, <strong>Misha</strong> 1180 EU SILVER, <strong>Sasha</strong> 1270 EU SILVER.</li>
+      <li>Добавьте всех троих в одно лобби (<code>POST /api/lobbies/join</code>): <code>mode=BATTLE_ROYALE</code>, <code>region=EU</code>, <code>rank=SILVER</code>, у каждого свой <code>playerId</code>.</li>
+      <li>Наблюдайте: <code>lobby.created</code> → joined 1/3, 2/3, 3/5 → ожидание 10 секунд → <code>lobby.formed</code> → живые события боя (60–120 c) → <code>match.finished</code> → <code>match.enriched</code> → обновление рейтинга.</li>
+      <li>Откройте <strong>RabbitMQ UI</strong> → вкладки Exchanges и Queues: покажите exchange <code>matchmaking.events</code>, три очереди и каналы.</li>
+      <li>Откройте <code>:8081/api/match-log</code> – там вся история событий по порядку.</li>
+      <li>Посмотрите консоль <code>enrichment-client</code> – увидите строки <code>gRPC call ...</code> и <code>match.enriched was sent</code>.</li>
+    </ol>
+  </div>
+  <div class="callout remember"><span class="ico">👀</span><div class="body"><b>Что должно быть видно в каждой консоли</b>
+  <p><strong>matchmaking:</strong> <code>Событие отправлено: lobby.formed / match.finished</code>. <strong>match-log:</strong> <code>[MATCH-LOG #N] ...</code>. <strong>analytics:</strong> <code>gRPC-запрос: расчет рейтинга ...</code>. <strong>enrichment:</strong> <code>Ответ gRPC получен ... match.enriched отправлено</code>. <strong>notification:</strong> <code>Уведомление отправлено ... clients=1</code>.</p></div></div>
+</section>
+<script>
+/* ===== анимированная end-to-end схема (Раздел 4) ===== */
+window.__initFlow = function(){
+  if(!window.MAFlow) return;
+  const L = (s)=>s; // helper
+  MAFlow.init([
+    { active:['client','mm'], done:[], bus:false,
+      label:'Клиент создаёт игроков и встаёт в лобби через <b>REST/GraphQL</b>.',
+      log:'<span class="t">[client]</span> POST /api/players x3, POST /api/lobbies/join x3' },
+    { active:['mm'], done:['client'], bus:true,
+      label:'<code>matchmaking</code> публикует доменные события в RabbitMQ.',
+      log:'<span class="t">[mm]</span> publish <span class="rk">player.created</span>, <span class="rk">lobby.created</span>, <span class="rk">lobby.player-joined</span>' },
+    { active:['log','ntf'], done:['mm'], bus:true,
+      label:'Журнал и уведомления подписаны на <b>все</b> события (<code>#</code>) и получают их.',
+      log:'<span class="t">[match-log]</span> #N saved &nbsp; <span class="t">[notification]</span> broadcast -> browser' },
+    { active:['mm'], done:['log','ntf'], bus:true,
+      label:'3-й игрок -> таймер 10 секунд. После таймера лобби <code>FORMED</code>, матч <code>IN_PROGRESS</code>.',
+      log:'<span class="t">[mm]</span> publish <span class="rk">lobby.formed</span>, then <span class="rk">match.progress</span> x(4..8)' },
+    { active:['ntf','br'], done:['mm'], bus:true,
+      label:'<code>notification</code> пушит живые события боя в браузер по WebSocket.',
+      log:'<span class="t">[notification]</span> ws push: "Artem hit Misha", "Sasha found loot"...' },
+    { active:['mm'], done:['ntf','br'], bus:true,
+      label:'Матч завершён -> публикуется <code>match.finished</code> (финальный snapshot).',
+      log:'<span class="t">[mm]</span> finishMatch -> publish <span class="rk">match.finished</span> (winner: Artem)' },
+    { active:['enr'], done:['mm'], bus:true,
+      label:'<code>enrichment-client</code> – единственный, кто слушает <code>match.finished</code>.',
+      log:'<span class="t">[enrichment]</span> received <span class="rk">match.finished</span> matchId=...' },
+    { active:['enr','an'], done:[], bus:false,
+      label:'Синхронный <b>gRPC</b>-вызов на analytics-server: посчитай рейтинги.',
+      log:'<span class="t">[enrichment]</span> gRPC CalculateRankChanges(...) -> :9090' },
+    { active:['an'], done:['enr'], bus:false,
+      label:'Сервер считает: победитель +25, проигравшие −10, новые ранги.',
+      log:'<span class="t">[analytics]</span> Artem 1210->1235 (+25), Misha 1180->1170 (-10)' },
+    { active:['enr'], done:['an'], bus:true,
+      label:'Клиент публикует результат как <code>match.enriched</code>.',
+      log:'<span class="t">[enrichment]</span> publish <span class="rk">match.enriched</span> + summary' },
+    { active:['log','ntf','br'], done:['enr'], bus:true,
+      label:'Журнал записывает обогащение, браузер показывает изменения ранга. Готово!',
+      log:'<span class="t">[notification]</span> ws push: "Изменения рейтинга: Artem +25 -> GOLD?"' }
+  ]);
+};
+</script>
+<!-- ================================================================
+     SECTION 5 – TROUBLESHOOTING
+     ================================================================ -->
+<section id="troubleshooting">
+  <span class="sec-kicker">Раздел 5 · Спасение</span>
+  <h2>Частые ошибки и как их чинить</h2>
+  <p>Это самые частые «грабли» при запуске на Windows + IntelliJ + Dropbox. Сначала – то, что выглядит как ошибка, но на самом деле <strong>норма</strong>.</p>
+
+  <div class="grid cols-2">
+    <div class="callout remember"><span class="ico">✅</span><div class="body"><b>Норма: <code>Ready = 0</code> в RabbitMQ</b><p>В RabbitMQ UI у очереди <code>Ready = 0</code> почти всегда значит «всё хорошо»: consumer мгновенно забрал сообщение. Не паникуйте.</p></div></div>
+    <div class="callout remember"><span class="ico">✅</span><div class="body"><b>Норма: очереди есть, а сообщений 0</b><p>Очереди создаются при старте сервисов (объявление topology). Пока вы не создали игроков/матч – сообщений нет. Это ожидаемо.</p></div></div>
+  </div>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Симптом</th><th>Причина</th><th>Решение</th></tr></thead>
+    <tbody>
+      <tr><td><code>Port already in use</code> / <code>Web server failed to start</code></td><td>Порт (8080–8084) занят прошлым запуском или другой программой</td><td>Закрыть старый процесс; найти: <code>netstat -ano | findstr :8080</code>, затем <code>taskkill /PID &lt;pid&gt; /F</code></td></tr>
+      <tr><td>Порт <strong>8084</strong> занят процессом <code>plasticd.exe</code></td><td>Plastic SCM (Unity) держит 8084</td><td>Остановить <code>plasticd.exe</code> в Task Manager, либо временно поднять notification-service на 8085 (<code>server.port</code>)</td></tr>
+      <tr><td><code>Connection refused</code> к RabbitMQ при старте сервиса</td><td>Контейнер RabbitMQ не запущен</td><td><code>docker start rabbitmq</code> (или <code>docker run ...</code>, если контейнера нет). Проверить <code>:15672</code></td></tr>
+      <tr><td><code>error during connect ... docker_engine ... pipe</code></td><td>Docker Desktop не запущен</td><td>Запустить Docker Desktop и дождаться статуса «Running», затем повторить</td></tr>
+      <tr><td>Сервис собирается со <strong>старым</strong> контрактом</td><td>Maven взял прошлую версию контракта из <code>~/.m2</code></td><td>Пересобрать всё из корня: <code>.\mvnw.cmd clean install -DskipTests</code> (контракты соберутся заново)</td></tr>
+      <tr><td>Protobuf-плагин падает / не удаляет <code>target</code></td><td>Dropbox синхронизирует <code>target/</code> и блокирует файлы</td><td>Поставить Dropbox на паузу во время сборки; в идеале – исключить <code>target/</code> из синхронизации</td></tr>
+      <tr><td><code>Module JDK is not defined</code> / не компилируется</td><td>В IntelliJ модулю не назначен JDK 21</td><td>File → Project Structure → Project SDK = 21; для модуля – «Module SDK = Project default»</td></tr>
+      <tr><td>В консоли «кракозябры» вместо текста логов</td><td>Кириллица в Java-логах + кодировка Windows-консоли</td><td>Оставить русские логи, но проверить UTF-8 в терминале IDEA / Windows Terminal. Не переводить логи обратно на английский.</td></tr>
+      <tr><td>После F5 не видно старых уведомлений</td><td>localStorage очищен или открыт другой браузер</td><td>UI хранит только последние 50 карточек в браузере. Полная история – в <code>match-log-service</code> (<code>:8081/api/match-log</code>)</td></tr>
+      <tr><td>gRPC: <code>UNAVAILABLE</code> при первом матче</td><td><code>analytics-server</code> (9090) ещё не поднят</td><td>Запускать analytics-server <strong>до</strong> enrichment-client; повторный матч пройдёт</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout tip"><span class="ico">🧪</span><div class="body"><b>Быстрая самопроверка «жив ли стек»</b><p>1) <code>:15672</code> открывается → RabbitMQ жив. 2) <code>:8080/swagger-ui.html</code> открывается → matchmaking жив. 3) создали игрока → в <code>:8081/api/match-log</code> появилась запись → шина работает. 4) провели матч → в консоли enrichment виден gRPC-вызов → gRPC работает. 5) карточка в <code>:8084</code> → WebSocket работает.</p></div></div>
+</section>
+
+<!-- ================================================================
+     SECTION 6 – DEFENSE
+     ================================================================ -->
+<section id="defense">
+  <span class="sec-kicker">Раздел 6 · Защита</span>
+  <h2>Как защитить проект преподавателю</h2>
+  <p>Здесь – готовые «речи» и ответы на типичные вопросы. Сначала короткое объяснение, потом подробное, потом – что показывать на экране.</p>
+
+  <div class="speech">
+    <div class="sh"><span>🎤 Речь на 2 минуты – «о чём проект»</span><span class="min">~2 мин</span></div>
+    <div class="sb">
+      <p>«<strong>Matchmaking Arena</strong> – учебная микросервисная система игрового матчмейкинга по предмету СОП. Это не игровой сервер, а демонстрация того, как сервисы общаются разными способами.»</p>
+      <p>«Главный сервис <code>matchmaking</code> принимает запросы по <strong>REST и GraphQL</strong>, держит игроков, лобби и матчи в памяти и публикует <strong>события в RabbitMQ</strong>. Главный принцип – он никого не вызывает напрямую, только бросает события.»</p>
+      <p>«На события подписаны три сервиса: <code>match-log-service</code> ведёт журнал, <code>notification-service</code> пушит <strong>WebSocket</strong>-уведомления в браузер, а <code>grpc-match-enrichment-client</code> на событие <code>match.finished</code> делает <strong>gRPC</strong>-вызов к <code>analytics-server</code>, который пересчитывает рейтинг, и публикует <code>match.enriched</code>.»</p>
+      <p>«Итого один сценарий показывает пять видов связи: REST, GraphQL, RabbitMQ, gRPC и WebSocket. Данные – в памяти, потому что цель – архитектура, а не персистентность.»</p>
+    </div>
+  </div>
+
+  <div class="speech">
+    <div class="sh"><span>🎤 Речь на 5 минут – «как идёт цепочка»</span><span class="min">~5 мин</span></div>
+    <div class="sb">
+      <p>«Покажу на сценарии. <strong>(1)</strong> Через Swagger создаю трёх игроков – летят события <code>player.created</code>. <strong>(2)</strong> Добавляю их в одно лобби с одинаковыми mode+region+rank. На первом – <code>lobby.created</code>, дальше <code>lobby.player-joined</code> 1/3, 2/3.»</p>
+      <p>«<strong>(3)</strong> На третьем игроке запускается ожидание 10 секунд. Если приходит 4-й, таймер начинается заново. Если приходит 5-й, матч стартует сразу. После старта лобби переходит в <code>FORMED</code>, создаётся матч, идёт <code>lobby.formed</code>. <strong>(4)</strong> Матч длится 60–120 секунд и шлёт 4–8 событий <code>match.progress</code> – это живые события боя, их видно в уведомлениях.»</p>
+      <p>«<strong>(5)</strong> В конце выбирается победитель, матч становится <code>FINISHED</code>, и публикуется <code>match.finished</code> – это значит «готов финальный снимок матча». <strong>(6)</strong> Его ловит <code>enrichment-client</code> и делает gRPC-вызов: победителю +25, проигравшим −10, ранги пересчитываются.»</p>
+      <p>«<strong>(7)</strong> Результат публикуется как <code>match.enriched</code>. <code>matchmaking</code> тоже слушает это событие и обновляет рейтинг игроков в своей HashMap. Журнал всей истории – в <code>match-log-service</code>, а UI дополнительно хранит последние 50 уведомлений в <code>localStorage</code>.»</p>
+    </div>
+  </div>
+
+  <h3>Что показывать на экране</h3>
+  <div class="grid cols-3">
+    <div class="card"><h4>🧪 Swagger / GraphiQL</h4><p>Создание игроков и вход в лобби. В GraphiQL – выборочные поля и <code>averageRating</code>.</p></div>
+    <div class="card"><h4>🐰 RabbitMQ UI</h4><p>Exchange <code>matchmaking.events</code>, три очереди, DLQ. Показать routing keys.</p></div>
+    <div class="card"><h4>🔔 + 📜</h4><p>Живые карточки в <code>:8084</code> и история в <code>:8081/api/match-log</code>. Консоль enrichment с gRPC.</p></div>
+  </div>
+
+  <h3>Флешкарты: типичные вопросы преподавателя</h3>
+  <p>Нажмите на карточку, чтобы увидеть ответ.</p>
+  <div class="cards-grid">
+    <div class="flip"><div class="flip-inner">
+      <div class="flip-face flip-front"><div class="qmark">Вопрос</div><div class="qt">Почему контрактов три и они не запускаются?</div><div class="hint">нажми →</div></div>
+      <div class="flip-face flip-back"><div class="at">Контракты (<b>api-contract</b>, <b>events-contract</b>, <b>grpc-contract</b>) – это общие «словари» типов. Они собираются в jar и подключаются к сервисам, чтобы все говорили одинаково. У них нет <b>main()</b>, поэтому запустить нельзя.</div></div>
+    </div></div>
+    <div class="flip"><div class="flip-inner">
+      <div class="flip-face flip-front"><div class="qmark">Вопрос</div><div class="qt">Что значит <code>match.finished</code>?</div><div class="hint">нажми →</div></div>
+      <div class="flip-face flip-back"><div class="at">Несмотря на название, это «<b>матч завершён, готов финальный snapshot</b>» – событие публикуется в конце <b>finishMatch</b>. Оно запускает gRPC-обогащение. Начало матча – это <b>lobby.formed</b>.</div></div>
+    </div></div>
+    <div class="flip"><div class="flip-inner">
+      <div class="flip-face flip-front"><div class="qmark">Вопрос</div><div class="qt">Почему рейтинг меняется не сразу в момент финиша?</div><div class="hint">нажми →</div></div>
+      <div class="flip-face flip-back"><div class="at">Сначала публикуется <b>match.finished</b>, затем enrichment-client вызывает gRPC и публикует <b>match.enriched</b>. Только после обработки <b>match.enriched</b> сервис <b>matchmaking</b> обновляет игроков в памяти.</div></div>
+    </div></div>
+    <div class="flip"><div class="flip-inner">
+      <div class="flip-face flip-front"><div class="qmark">Вопрос</div><div class="qt">Зачем и REST, и GraphQL?</div><div class="hint">нажми →</div></div>
+      <div class="flip-face flip-back"><div class="at">Это два «окна» в один сервис. REST – фиксированные ответы и Swagger. GraphQL – клиент сам выбирает поля и тянет связанные данные одним запросом. Оба вызывают один <b>MatchmakingService</b>.</div></div>
+    </div></div>
+    <div class="flip"><div class="flip-inner">
+      <div class="flip-face flip-front"><div class="qmark">Вопрос</div><div class="qt">Чем gRPC отличается от RabbitMQ?</div><div class="hint">нажми →</div></div>
+      <div class="flip-face flip-back"><div class="at">gRPC – <b>синхронный</b> вызов «запрос→ответ» между двумя сервисами (быстрый, строгий контракт <b>.proto</b>). RabbitMQ – <b>асинхронная</b> рассылка «одному-многим», отправитель не ждёт и не знает получателей.</div></div>
+    </div></div>
+    <div class="flip"><div class="flip-inner">
+      <div class="flip-face flip-front"><div class="qmark">Вопрос</div><div class="qt">Почему матч не стартует сразу на 3 игроках?</div><div class="hint">нажми →</div></div>
+      <div class="flip-face flip-back"><div class="at"><b>MIN_PLAYERS_TO_START = 3</b>, но после 3-го игрока есть ожидание 10 секунд. 4-й игрок может успеть войти и перезапустить таймер. <b>MAX_PLAYERS_IN_LOBBY = 5</b>, поэтому 5-й запускает матч сразу.</div></div>
+    </div></div>
+    <div class="flip"><div class="flip-inner">
+      <div class="flip-face flip-front"><div class="qmark">Вопрос</div><div class="qt">Чем <code>eventId</code> отличается от <code>matchId</code>?</div><div class="hint">нажми →</div></div>
+      <div class="flip-face flip-back"><div class="at"><b>eventId</b> – id сообщения в RabbitMQ (для трассировки и дедупликации). <b>matchId</b> – id доменной сущности «матч». Разные миры: одно сообщение про один матч имеет свой eventId.</div></div>
+    </div></div>
+    <div class="flip"><div class="flip-inner">
+      <div class="flip-face flip-front"><div class="qmark">Вопрос</div><div class="qt">Почему данные в памяти?</div><div class="hint">нажми →</div></div>
+      <div class="flip-face flip-back"><div class="at">Цель курса – показать связь сервисов, а не БД. Игроки/лобби/матчи в <b>LinkedHashMap</b>; после рестарта сбрасываются. Это сознательное упрощение, заявленное в правилах проекта.</div></div>
+    </div></div>
+  </div>
+</section>
+<!-- ================================================================
+     SECTION 7 – BUILD FROM SCRATCH
+     ================================================================ -->
+<section id="build">
+  <span class="sec-kicker">Раздел 7 · Своими руками</span>
+  <h2>Как собрать такой проект самому с нуля</h2>
+  <p>Практический маршрут. Главное правило: <strong>сначала контракты, потом сервисы</strong>; <strong>сначала один способ связи заработал – потом добавляй следующий</strong>. Не пытайтесь сделать всё сразу.</p>
+
+  <h3>Порядок: 7 шагов</h3>
+  <div class="diagram">
+    <div class="mmd">
+graph TD
+  A["1 · root pom + api-contract + matchmaking"]:::a --> B["2 · REST: контроллеры, MatchmakingService, in-memory"]:::b
+  B --> C["3 · GraphQL: schema + DataFetchers"]:::b
+  C --> D["4 · events-contract + RabbitMQ publishers"]:::c
+  D --> E["5 · match-log-service consumer"]:::c
+  E --> F["6 · grpc-contract + server + enrichment-client"]:::d
+  F --> G["7 · notification-service WebSocket"]:::e
+  classDef a fill:#2a2433,stroke:#8a7dff,color:#cabfff;
+  classDef b fill:#1d2336,stroke:#6ea8ff,color:#e8ecf6;
+  classDef c fill:#2a1f33,stroke:#ff7ac6,color:#ffd6f0;
+  classDef d fill:#10261f,stroke:#34d6c0,color:#d6fff7;
+  classDef e fill:#33231f,stroke:#f2c14e,color:#fff0cf;
+    </div>
+    <pre class="fallback">1 root+api-contract+matchmaking -> 2 REST -> 3 GraphQL -> 4 events+RabbitMQ -> 5 match-log -> 6 gRPC -> 7 WebSocket</pre>
+  </div>
+
+  <div class="card">
+    <h4>Минимальные классы по этапам</h4>
+    <ol>
+      <li><strong>Каркас.</strong> Корневой <code>pom.xml</code> (<code>packaging=pom</code>, список <code>&lt;modules&gt;</code>). Модуль <code>api-contract</code>: записи <code>PlayerRequest/Response</code>, <code>JoinLobbyRequest</code>, <code>LobbyResponse</code>, <code>MatchResponse</code>; интерфейсы <code>PlayerApi/LobbyApi/MatchApi</code>. Модуль <code>matchmaking</code> с <code>DemoApplication</code>.</li>
+      <li><strong>REST.</strong> <code>MatchmakingService</code> с <code>Map</code>-хранилищами, <code>createPlayer</code>, <code>rankByRating</code>, <code>joinLobby</code>, <code>startMatch</code>, <code>finishMatch</code>, планировщик. Контроллеры <code>implements *Api</code> + HATEOAS. Подключить Swagger. <em>Проверка:</em> Swagger создаёт игрока и собирает матч.</li>
+      <li><strong>GraphQL.</strong> Добавить <code>schema.graphqls</code>, зависимость DGS, <code>@DgsComponent</code>-резолверы, что зовут <code>MatchmakingService</code>; вычисляемое <code>averageRating</code>; scalar <code>DateTime</code>; instrumentation. <em>Проверка:</em> GraphiQL.</li>
+      <li><strong>RabbitMQ.</strong> Модуль <code>matchmaking-events-contract</code>: <code>EventEnvelope</code>, <code>EventMetadata</code>, <code>RoutingKeys</code>, <code>*Event</code>. В <code>matchmaking</code>: <code>RabbitMQConfig</code> (topic exchange) + три publisher’а. <em>Проверка:</em> сообщения в RabbitMQ UI.</li>
+      <li><strong>match-log-service.</strong> Новый сервис: <code>@RabbitListener</code> на очередь <code>#</code>, in-memory storage с дедупликацией, REST <code>/api/match-log</code>. <em>Проверка:</em> история событий по адресу.</li>
+      <li><strong>gRPC.</strong> Модуль <code>matchmaking-grpc-contract</code> с <code>.proto</code> + protobuf-плагин. <code>grpc-match-analytics-server</code> (реализация + <code>SmartLifecycle</code> на 9090). <code>grpc-match-enrichment-client</code> (listener <code>match.finished</code> → blocking stub → publish <code>match.enriched</code>). <em>Проверка:</em> gRPC-логи.</li>
+      <li><strong>WebSocket.</strong> <code>notification-service</code>: <code>WebSocketConfig</code>, handler с <code>broadcast</code>, listener (<code>#</code>) → <code>NotificationPayload</code>, статичный <code>index.html</code>. <em>Проверка:</em> живые карточки в браузере.</li>
+    </ol>
+  </div>
+
+  <div class="callout important"><span class="ico">🪜</span><div class="body"><b>«Сначала это, потом то»</b><p>На каждом этапе <strong>добейтесь, чтобы работало и проверяемо</strong>, прежде чем идти дальше. Сломалось на gRPC? REST и RabbitMQ уже работают – значит, проблема локальна. Это и есть инкрементальная сборка.</p></div></div>
+  <div class="callout mistake"><span class="ico">🚫</span><div class="body"><b>Чего НЕ добавлять (правила проекта)</b><p>Никакой базы данных, JWT/security, API Gateway, сложной игровой симуляции. Это учебный проект – лишняя инфраструктура только мешает объяснять архитектуру.</p></div></div>
+</section>
+
+<!-- ================================================================
+     SECTION 8 – GLOSSARY
+     ================================================================ -->
+<section id="glossary">
+  <span class="sec-kicker">Раздел 8 · Словарь</span>
+  <h2>Глоссарий простыми словами</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Термин</th><th>Простыми словами</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Service (сервис)</strong></td><td>Отдельная запускаемая программа с одной зоной ответственности и своим портом.</td></tr>
+      <tr><td><strong>Contract (контракт)</strong></td><td>Описание «как с нами разговаривать» (типы и операции), вынесенное отдельно от реализации.</td></tr>
+      <tr><td><strong>DTO</strong></td><td>Data Transfer Object – простой объект «формы данных» для передачи по сети (у нас – <code>record</code>).</td></tr>
+      <tr><td><strong>Controller</strong></td><td>Класс, принимающий HTTP-запрос и отдающий ответ. Логики в нём нет – он зовёт сервис.</td></tr>
+      <tr><td><strong>Service layer</strong></td><td>Слой бизнес-логики (<code>MatchmakingService</code>): здесь живут правила (лобби, матчи, ранги).</td></tr>
+      <tr><td><strong>In-memory storage</strong></td><td>Данные хранятся в обычных коллекциях в оперативной памяти. Без БД; сбрасываются при рестарте.</td></tr>
+      <tr><td><strong>HATEOAS</strong></td><td>Когда ответ содержит не только данные, но и ссылки на связанные действия (<code>_links</code>).</td></tr>
+      <tr><td><strong>GraphQL Query / Mutation</strong></td><td><em>Query</em> – чтение, <em>Mutation</em> – изменение. Клиент сам указывает, какие поля вернуть.</td></tr>
+      <tr><td><strong>DataFetcher</strong></td><td>Метод-резолвер GraphQL (<code>@DgsQuery</code>/<code>@DgsMutation</code>/<code>@DgsData</code>), который добывает данные для поля.</td></tr>
+      <tr><td><strong>Exchange</strong></td><td>«Сортировочный узел» RabbitMQ: получает сообщение и раскидывает его по очередям. У нас тип <em>topic</em>.</td></tr>
+      <tr><td><strong>Queue (очередь)</strong></td><td>Буфер, где сообщения ждут, пока consumer их заберёт.</td></tr>
+      <tr><td><strong>Binding</strong></td><td>Правило «эта очередь получает сообщения с такими routing key» (например <code>#</code> или <code>match.finished</code>).</td></tr>
+      <tr><td><strong>Routing key</strong></td><td>«Тема» сообщения (<code>match.finished</code>), по которой exchange решает, в какие очереди его класть.</td></tr>
+      <tr><td><strong>DLQ / DLX</strong></td><td>Dead-Letter Queue/Exchange – куда уходят сообщения, которые не удалось обработать. Чтобы не терять и не зацикливать.</td></tr>
+      <tr><td><strong>Event envelope</strong></td><td>«Конверт» <code>EventEnvelope</code>: метаданные (<code>EventMetadata</code>) + полезная нагрузка (payload).</td></tr>
+      <tr><td><strong>eventId</strong></td><td>Уникальный id <em>сообщения</em> в RabbitMQ (для трассировки/дедупликации). Не путать с <code>matchId</code>.</td></tr>
+      <tr><td><strong>gRPC server / client</strong></td><td>Сервер – кто выполняет удалённый метод; клиент – кто его вызывает по сети.</td></tr>
+      <tr><td><strong>stub</strong></td><td>Сгенерированный объект-«пульт» на стороне клиента: вызываешь его метод – он шлёт gRPC-запрос на сервер.</td></tr>
+      <tr><td><strong>proto / protobuf</strong></td><td>Язык описания gRPC-контракта (<code>.proto</code>) и бинарный формат данных. Из него генерируется Java.</td></tr>
+      <tr><td><strong>WebSocket</strong></td><td>Постоянное двустороннее соединение браузер↔сервер. Сервер сам шлёт сообщения (push).</td></tr>
+      <tr><td><strong>Notification</strong></td><td>Живое уведомление в браузере. UI хранит последние 50 карточек в localStorage, а история событий – в match-log.</td></tr>
+      <tr><td><strong>Maven aggregator</strong></td><td>Корневой <code>pom.xml</code> (<code>packaging=pom</code>) со списком модулей – он сам ничего не делает, но собирает всё вместе.</td></tr>
+      <tr><td><strong>Reactor</strong></td><td>Механизм Maven, который строит порядок сборки модулей по их зависимостям.</td></tr>
+      <tr><td><strong><code>-pl</code> / <code>-am</code></strong></td><td><code>-pl</code> – собрать/запустить указанный модуль; <code>-am</code> – заодно собрать те, от которых он зависит.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ================================================================
+     SECTION 9 – CHEAT SHEET
+     ================================================================ -->
+<section id="cheatsheet">
+  <span class="sec-kicker">Раздел 9 · Шпаргалка</span>
+  <h2>Cheat sheet + защитный скрипт</h2>
+
+  <div class="grid cols-2">
+    <div class="card">
+      <h4>📦 Модули</h4>
+      <p><strong>Контракты (не запускаются):</strong> api-contract, matchmaking-events-contract, matchmaking-grpc-contract.</p>
+      <p><strong>Сервисы:</strong> matchmaking (8080), match-log-service (8081), grpc-match-enrichment-client (8082), grpc-match-analytics-server (8083/9090), notification-service (8084).</p>
+    </div>
+    <div class="card">
+      <h4>🔌 Порты</h4>
+      <p>8080 REST/GraphQL · 8081 log · 8082 enrichment · 8083 analytics HTTP · <strong>9090 analytics gRPC</strong> · 8084 notification/WS · 5672 RabbitMQ · 15672 RabbitMQ UI.</p>
+    </div>
+    <div class="card">
+      <h4>📨 Routing keys</h4>
+      <p>player.created · lobby.created · lobby.player-joined · lobby.formed · lobby.disbanded · match.progress · <strong>match.finished</strong> · <strong>match.enriched</strong>.</p>
+    </div>
+    <div class="card">
+      <h4>📊 Числа, которые спросят</h4>
+      <p>Матч: <strong>3</strong> игрока минимум · <strong>60–120</strong> c · <strong>4–8</strong> progress-событий. gRPC: победитель <strong>+25</strong>, проигравшие <strong>−10</strong>. Ранги: B&lt;1000, S&lt;1500, G&lt;2000, P&lt;2500, D 2500+.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h4>⚡ Команды (PowerShell, из корня проекта)</h4>
+    <div class="codeblock">
+      <div class="code-tabbar"><button class="code-tab active" data-target="cheat-1">всё подряд</button><span class="code-spacer"></span><button class="copybtn"><span class="cl">Copy</span></button></div>
+      <div class="code-panes"><div class="code-pane active" id="cheat-1"><pre><code class="language-bash">docker start rabbitmq
+.\mvnw.cmd clean install -DskipTests
+.\mvnw.cmd spring-boot:run -pl matchmaking -am -DskipTests
+.\mvnw.cmd spring-boot:run -pl match-log-service -am -DskipTests
+.\mvnw.cmd spring-boot:run -pl grpc-match-analytics-server -am -DskipTests
+.\mvnw.cmd spring-boot:run -pl grpc-match-enrichment-client -am -DskipTests
+.\mvnw.cmd spring-boot:run -pl notification-service -am -DskipTests</code></pre></div></div>
+    </div>
+  </div>
+
+  <div class="speech">
+    <div class="sh"><span>🛡️ Защитный скрипт в одну фразу</span><span class="min">выучить наизусть</span></div>
+    <div class="sb">
+      <p>«Один сценарий матчмейкинга – пять способов связи: <strong>REST/GraphQL</strong> на входе в <code>matchmaking</code>, <strong>RabbitMQ</strong> для асинхронной рассылки событий, <strong>gRPC</strong> для синхронного расчёта рейтинга, <strong>WebSocket</strong> для живых уведомлений. Главный сервис публикует доменные события и дополнительно слушает <code>match.enriched</code>, чтобы обновить рейтинг игроков в памяти. Данные – in-memory, потому что цель – архитектура, а не БД. <code>match.finished</code> = "матч завершён, готов финал".»</p>
+    </div>
+  </div>
+
+  <div class="callout remember"><span class="ico">🏁</span><div class="body"><b>Три вещи, которые легко забыть на защите</b><p>1) <code>match.finished</code> – это конец матча, не начало. 2) <code>matchmaking</code> обновляет рейтинг после события <code>match.enriched</code>. 3) Notification UI хранит последние 50 карточек в <code>localStorage</code>, а полная история остаётся в <code>match-log-service</code>.</p></div></div>
+
+  <footer>
+    <p>Matchmaking Arena · учебный разбор для предмета «Сервисно-Ориентированное Программирование».<br>
+    Источники правды: <code>context/AGENTS.md</code>, <code>context/README.md</code> и исходный код проекта. Данные – in-memory, проект учебный.</p>
+    <p>Светлая/тёмная тема · поиск · scrollspy · интерактивные схемы – переключайте и исследуйте.</p>
+  </footer>
+</section>
+<!-- END_SECTIONS -->
+  </main>
+</div>
+
+<button id="toTop" aria-label="Наверх">↑</button>
+
+<!-- ===================== CDN SCRIPTS ===================== -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>/* отключаем авто-рендер mermaid сразу, до DOMContentLoaded: рисуем вручную из .mmd */
+  try{ if(window.mermaid) mermaid.initialize({startOnLoad:false}); }catch(e){}</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+
+<script>
+/* ===================================================================
+   0. УТИЛИТЫ
+   =================================================================== */
+const $  = (s,r=document)=>r.querySelector(s);
+const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
+const hasMermaid = ()=>typeof window.mermaid !== 'undefined';
+const hasChart   = ()=>typeof window.Chart   !== 'undefined';
+
+/* ===================================================================
+   1. ТЕМА (light/dark) + Mermaid/Chart перерисовка
+   =================================================================== */
+const root = document.documentElement;
+const themeBtn = $('#themeBtn');
+function applyTheme(t){
+  root.setAttribute('data-theme', t);
+  themeBtn.textContent = t==='dark' ? '🌙' : '☀️';
+  try{ localStorage.setItem('ma-theme', t); }catch(e){}
+}
+(function initTheme(){
+  let t='dark';
+  try{ t = localStorage.getItem('ma-theme') || 'dark'; }catch(e){}
+  applyTheme(t);
+})();
+themeBtn.addEventListener('click', ()=>{
+  const next = root.getAttribute('data-theme')==='dark' ? 'light':'dark';
+  applyTheme(next);
+  renderMermaid();   // перерисовать диаграммы под новую тему
+  recolorCharts();   // перекрасить графики
+});
+
+/* ===================================================================
+   2. MERMAID init + render
+   =================================================================== */
+function mermaidThemeVars(){
+  const dark = root.getAttribute('data-theme')==='dark';
+  return {
+    theme:'base',
+    themeVariables:{
+      darkMode:dark,
+      background:'transparent',
+      primaryColor: dark?'#171c2c':'#ffffff',
+      primaryTextColor: dark?'#e8ecf6':'#1a2236',
+      primaryBorderColor: dark?'#46507a':'#2f6df6',
+      lineColor: dark?'#6ea8ff':'#2f6df6',
+      secondaryColor: dark?'#1d2336':'#eef1f8',
+      tertiaryColor: dark?'#121624':'#f7f9fe',
+      fontFamily:'inherit',
+      fontSize:'14px'
+    },
+    flowchart:{curve:'basis',padding:14,useMaxWidth:true},
+    sequence:{useMaxWidth:true,wrap:true}
+  };
+}
+let mermaidStore = []; // {el, src}
+function renderMermaid(){
+  if(!hasMermaid()) return;
+  try{
+    mermaid.initialize(Object.assign({startOnLoad:false, securityLevel:'loose'}, mermaidThemeVars()));
+    mermaidStore.forEach((m,i)=>{
+      const id='mmd-'+i+'-'+Date.now();
+      mermaid.render(id, m.src).then(({svg})=>{ m.el.innerHTML=svg; }).catch(()=>{});
+    });
+  }catch(e){ document.body.classList.add('no-cdn'); }
+}
+function collectMermaid(){
+  mermaidStore = $$('.mmd').map(el=>({el, src: (el.getAttribute('data-src') || el.textContent).trim()}));
+}
+
+/* ===================================================================
+   3. CHARTS (Chart.js) – регистрируются модулями через registerChart()
+   =================================================================== */
+const chartInstances = [];
+function buildCharts(){
+  if(!hasChart()) return;
+  (window.__charts||[]).forEach(fn=>{ try{ const c=fn(); if(c) chartInstances.push(c); }catch(e){} });
+}
+function chartColors(){
+  const cs=getComputedStyle(root);
+  const g=(n)=>cs.getPropertyValue(n).trim();
+  return {text:g('--text-soft'),grid:g('--border'),primary:g('--primary'),
+    accent:g('--accent'),green:g('--green'),red:g('--red'),yellow:g('--yellow'),pink:g('--pink'),p2:g('--primary-2')};
+}
+function recolorCharts(){
+  if(!hasChart()) return;
+  const c=chartColors();
+  chartInstances.forEach(ch=>{
+    if(ch.options.scales){
+      Object.values(ch.options.scales).forEach(s=>{
+        if(s.ticks) s.ticks.color=c.text;
+        if(s.grid)  s.grid.color=c.grid;
+        if(s.title) s.title.color=c.text;
+      });
+    }
+    if(ch.options.plugins&&ch.options.plugins.legend&&ch.options.plugins.legend.labels)
+      ch.options.plugins.legend.labels.color=c.text;
+    ch.update();
+  });
+}
+
+/* ===================================================================
+   4. ВКЛАДКИ КОДА + COPY + EXPAND  (делегирование событий)
+   =================================================================== */
+document.addEventListener('click', e=>{
+  // tabs
+  const tab=e.target.closest('.code-tab');
+  if(tab){
+    const block=tab.closest('.codeblock');
+    $$('.code-tab',block).forEach(t=>t.classList.remove('active'));
+    $$('.code-pane',block).forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    const pane=$('#'+tab.dataset.target,block);
+    if(pane) pane.classList.add('active');
+    return;
+  }
+  // copy
+  const cp=e.target.closest('.copybtn');
+  if(cp){
+    const block=cp.closest('.codeblock');
+    const pane=$('.code-pane.active',block) || $('.code-pane',block);
+    const txt=pane?pane.innerText:'';
+    navigator.clipboard?.writeText(txt).then(()=>{
+      const old=cp.querySelector('span')?cp.querySelector('span').textContent:cp.textContent;
+      cp.classList.add('done'); const lbl=cp.querySelector('.cl'); if(lbl)lbl.textContent='Скопировано';
+      setTimeout(()=>{cp.classList.remove('done'); if(lbl)lbl.textContent='Copy';},1400);
+    }).catch(()=>{});
+    return;
+  }
+  // expand
+  const ex=e.target.closest('.expandbtn');
+  if(ex){
+    const pre=$('.code-pane.active pre',ex.closest('.codeblock')) || $('pre',ex.closest('.codeblock'));
+    if(pre){ pre.classList.toggle('collapsed'); ex.textContent = pre.classList.contains('collapsed')?'▼ Показать полностью':'▲ Свернуть'; }
+    return;
+  }
+  // quiz
+  const opt=e.target.closest('.quiz .opt');
+  if(opt && !opt.classList.contains('disabled')){
+    const quiz=opt.closest('.quiz');
+    const correct = opt.dataset.correct==='1';
+    $$('.opt',quiz).forEach(o=>{o.classList.add('disabled'); if(o.dataset.correct==='1')o.classList.add('correct');});
+    if(!correct) opt.classList.add('wrong');
+    const ex=$('.explain',quiz); if(ex) ex.classList.add('show');
+    return;
+  }
+  // flashcard flip
+  const flip=e.target.closest('.flip');
+  if(flip){ flip.classList.toggle('flipped'); return; }
+});
+
+/* ===================================================================
+   5. ПОИСК
+   =================================================================== */
+const searchInput=$('#search'), searchCount=$('#searchCount');
+let searchTimer=null;
+function clearMarks(el){
+  $$('mark',el).forEach(m=>{ const t=document.createTextNode(m.textContent); m.replaceWith(t); });
+  el.normalize&&el.normalize();
+}
+function doSearch(q){
+  const sections=$$('main > section');
+  q=q.trim().toLowerCase();
+  // снять прошлые подсветки
+  sections.forEach(s=>clearMarks(s));
+  if(!q){ sections.forEach(s=>s.classList.remove('search-hidden')); searchCount.textContent=''; return; }
+  let shown=0;
+  sections.forEach(s=>{
+    const hit=s.textContent.toLowerCase().includes(q);
+    s.classList.toggle('search-hidden', !hit);
+    if(hit){ shown++; highlight(s,q); }
+  });
+  searchCount.textContent = shown? shown+' разд.' : 'нет';
+}
+function highlight(node,q){
+  const walker=document.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
+    acceptNode:(n)=>{
+      if(!n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      const p=n.parentElement;
+      if(p.closest('pre,code,script,style,.mmd,.flow-log,.code-tabbar')) return NodeFilter.FILTER_REJECT;
+      return n.nodeValue.toLowerCase().includes(q)?NodeFilter.FILTER_ACCEPT:NodeFilter.FILTER_REJECT;
+    }
+  });
+  const hits=[]; let n; while(n=walker.nextNode()) hits.push(n);
+  hits.forEach(textNode=>{
+    const frag=document.createDocumentFragment();
+    const txt=textNode.nodeValue; const low=txt.toLowerCase(); let i=0,idx;
+    while((idx=low.indexOf(q,i))!==-1){
+      if(idx>i) frag.appendChild(document.createTextNode(txt.slice(i,idx)));
+      const m=document.createElement('mark'); m.textContent=txt.slice(idx,idx+q.length); frag.appendChild(m);
+      i=idx+q.length;
+    }
+    if(i<txt.length) frag.appendChild(document.createTextNode(txt.slice(i)));
+    textNode.replaceWith(frag);
+  });
+}
+searchInput.addEventListener('input', e=>{
+  clearTimeout(searchTimer);
+  const v=e.target.value;
+  searchTimer=setTimeout(()=>doSearch(v),180);
+});
+searchInput.addEventListener('keydown',e=>{ if(e.key==='Escape'){ e.target.value=''; doSearch(''); }});
+
+/* ===================================================================
+   6. SCROLLSPY + PROGRESS + TО TOP
+   =================================================================== */
+function initScrollspy(){
+  const links=$$('#toc a'); const map={};
+  links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const obs=new IntersectionObserver(entries=>{
+    entries.forEach(en=>{
+      if(en.isIntersecting){
+        links.forEach(l=>l.classList.remove('active'));
+        const a=map[en.target.id]; if(a){a.classList.add('active');
+          a.scrollIntoView({block:'nearest'});}
+      }
+    });
+  },{rootMargin:'-15% 0px -75% 0px',threshold:0});
+  $$('main > section[id]').forEach(s=>obs.observe(s));
+}
+const progress=$('#progress'), toTop=$('#toTop');
+window.addEventListener('scroll',()=>{
+  const h=document.documentElement;
+  const sc=h.scrollTop/(h.scrollHeight-h.clientHeight)*100;
+  progress.style.width=sc+'%';
+  toTop.classList.toggle('show', h.scrollTop>600);
+},{passive:true});
+toTop.addEventListener('click',()=>window.scrollTo({top:0,behavior:'smooth'}));
+
+/* ===================================================================
+   7. MOBILE SIDEBAR
+   =================================================================== */
+const sidebar=$('#sidebar'), backdrop=$('#backdrop');
+$('#menuBtn').addEventListener('click',()=>{sidebar.classList.add('open');backdrop.classList.add('open');});
+backdrop.addEventListener('click',()=>{sidebar.classList.remove('open');backdrop.classList.remove('open');});
+$$('#toc a').forEach(a=>a.addEventListener('click',()=>{sidebar.classList.remove('open');backdrop.classList.remove('open');}));
+
+/* ===================================================================
+   8. ANIMATED END-TO-END FLOW (заполняется модулем секции 4)
+   =================================================================== */
+window.MAFlow = (function(){
+  let steps=[], idx=-1, playing=null;
+  function reset(){
+    idx=-1;
+    $$('.flow-node').forEach(n=>n.classList.remove('active','done'));
+    $('.flow-bus') && $('.flow-bus').classList.remove('active');
+    const log=$('#flowLog'); if(log) log.innerHTML='';
+    const lbl=$('#flowStepLabel'); if(lbl) lbl.innerHTML='Нажмите <b>▶ Запустить</b>, чтобы проследить путь события через все сервисы.';
+  }
+  function applyStep(i){
+    const s=steps[i]; if(!s) return;
+    $$('.flow-node').forEach(n=>{
+      if(s.active.includes(n.dataset.node)) n.classList.add('active'); else n.classList.remove('active');
+      if(s.done.includes(n.dataset.node)) n.classList.add('done');
+    });
+    const bus=$('.flow-bus'); if(bus) bus.classList.toggle('active', !!s.bus);
+    const lbl=$('#flowStepLabel'); if(lbl) lbl.innerHTML='<b>Шаг '+(i+1)+'/'+steps.length+':</b> '+s.label;
+    const log=$('#flowLog');
+    if(log && s.log){ const d=document.createElement('div'); d.className='ln'; d.innerHTML=s.log; log.appendChild(d); log.scrollTop=log.scrollHeight; }
+  }
+  function step(){ if(idx<steps.length-1){ idx++; applyStep(idx); } else { stop(); } }
+  function play(){ stop(); if(idx>=steps.length-1) reset(); playing=setInterval(()=>{ if(idx>=steps.length-1){stop();return;} step(); },1500); }
+  function stop(){ if(playing){clearInterval(playing);playing=null;} }
+  return {
+    init(s){ steps=s; reset();
+      $('#flowPlay')&&$('#flowPlay').addEventListener('click',play);
+      $('#flowStep')&&$('#flowStep').addEventListener('click',()=>{stop();step();});
+      $('#flowReset')&&$('#flowReset').addEventListener('click',()=>{stop();reset();});
+    }
+  };
+})();
+
+/* ===================================================================
+   9. BOOT
+   =================================================================== */
+function boot(){
+  // CDN доступность
+  if(!hasMermaid() || !hasChart()) document.body.classList.add('no-cdn');
+  collectMermaid();
+  renderMermaid();
+  buildCharts();
+  initScrollspy();
+  if(window.Prism){ try{ Prism.highlightAll(); }catch(e){} }
+  if(window.__initFlow) window.__initFlow();
+}
+window.addEventListener('load', boot);
+</script>
+</body>
+</html>

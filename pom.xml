@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>edu.rutmiit.demo</groupId>
+    <artifactId>matchmaking-root</artifactId>
+    <version>6.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>matchmaking [root aggregator]</name>
+
+    <modules>
+        <module>api-contract</module>
+        <module>matchmaking-events-contract</module>
+        <module>matchmaking-grpc-contract</module>
+        <module>matchmaking</module>
+        <module>match-log-service</module>
+        <module>grpc-match-analytics-server</module>
+        <module>grpc-match-enrichment-client</module>
+        <module>notification-service</module>
+    </modules>
+</project>

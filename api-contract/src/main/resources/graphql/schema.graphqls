@@ -1,0 +1,141 @@
+"""Дата и время с часовым поясом, например 2026-04-29T17:30:00+03:00"""
+scalar DateTime
+
+"""Игрок, который может попасть в очередь ожидания игры."""
+type Player {
+    id: ID!
+    nickname: String!
+    rating: Int!
+    region: String!
+    rank: String!
+    createdAt: DateTime!
+}
+
+"""Лобби это очередь ожидания для игроков одного режима, региона и ранга."""
+type Lobby {
+    id: ID!
+    mode: String!
+    region: String!
+    rank: String!
+    status: String!
+    minPlayers: Int!
+    playerCount: Int!
+    averageRating: Float
+    players: [Player!]!
+    createdAt: DateTime!
+    deadlineAt: DateTime!
+    startedAt: DateTime
+    match: Match
+}
+
+"""Событие внутри учебной симуляции матча."""
+type MatchEvent {
+    id: ID!
+    type: String!
+    message: String!
+    actorPlayerId: ID
+    targetPlayerId: ID
+    occurredAt: DateTime!
+}
+
+"""Матч автоматически создается после формирования лобби."""
+type Match {
+    id: ID!
+    lobby: Lobby!
+    mode: String!
+    region: String!
+    rank: String!
+    status: String!
+    players: [Player!]!
+    events: [MatchEvent!]!
+    winner: Player
+    createdAt: DateTime!
+    finishedAt: DateTime
+}
+
+"""Пагинация игроков."""
+type PlayerConnection {
+    content: [Player!]!
+    pageInfo: PageInfo!
+    totalElements: Int!
+}
+
+"""Пагинация лобби."""
+type LobbyConnection {
+    content: [Lobby!]!
+    pageInfo: PageInfo!
+    totalElements: Int!
+}
+
+"""Пагинация матчей."""
+type MatchConnection {
+    content: [Match!]!
+    pageInfo: PageInfo!
+    totalElements: Int!
+}
+
+type PageInfo {
+    pageNumber: Int!
+    pageSize: Int!
+    totalPages: Int!
+    last: Boolean!
+}
+
+input PlayerFilter {
+    region: String
+    rank: String
+}
+
+input LobbyFilter {
+    status: String
+    region: String
+    rank: String
+    mode: String
+}
+
+input MatchFilter {
+    status: String
+    region: String
+    rank: String
+    mode: String
+}
+
+input CreatePlayerInput {
+    nickname: String!
+    rating: Int = 1000
+    region: String = "EU"
+    rank: String = "SILVER"
+}
+
+input JoinLobbyInput {
+    playerId: ID!
+    mode: String!
+    region: String!
+    rank: String!
+    timeoutSeconds: Int = 30
+}
+
+type Query {
+    player(id: ID!): Player
+    players(filter: PlayerFilter, page: Int = 0, size: Int = 20): PlayerConnection!
+
+    lobby(id: ID!): Lobby
+    lobbies(filter: LobbyFilter, page: Int = 0, size: Int = 20): LobbyConnection!
+    lobbiesByRegion(region: String!, page: Int = 0, size: Int = 20): LobbyConnection!
+
+    match(id: ID!): Match
+    matches(filter: MatchFilter, page: Int = 0, size: Int = 20): MatchConnection!
+}
+
+type Mutation {
+    createPlayer(input: CreatePlayerInput!): Player!
+
+    """Добавляет игрока в WAITING-лобби или создает новое. После 3 или 4 игроков матч стартует через 10 секунд, при 5 игроках сразу."""
+    joinLobby(input: JoinLobbyInput!): Lobby!
+
+    """Распускает WAITING-лобби вручную и возвращает измененный объект."""
+    disbandLobby(id: ID!): Lobby!
+
+    """Проверяет истекшие WAITING-лобби. Если игроков меньше 3, распускает их."""
+    processLobbyTimeouts: [Lobby!]!
+}

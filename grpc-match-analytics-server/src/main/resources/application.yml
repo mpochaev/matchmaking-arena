@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: grpc-match-analytics-server
+
+server:
+  port: 8083
+
+grpc:
+  server:
+    port: 9090
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  charset:
+    console: UTF-8
