@@ -1,5 +1,13 @@
 package edu.rutmiit.pochaev.grpcmatchenrichment.listener;
 
+import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.stereotype.Component;
+
 import edu.rutmiit.pochaev.grpcmatchenrichment.publisher.MatchEnrichmentEventPublisher;
 import edu.rutmiit.pochaev.matchmakingevents.EventMetadata;
 import edu.rutmiit.pochaev.matchmakingevents.MatchEvent;
@@ -7,15 +15,8 @@ import edu.rutmiit.pochaev.matchmakinggrpc.CalculateRankChangesRequest;
 import edu.rutmiit.pochaev.matchmakinggrpc.MatchPlayer;
 import edu.rutmiit.pochaev.matchmakinggrpc.MatchRankEnrichmentGrpc;
 import edu.rutmiit.pochaev.matchmakinggrpc.RankChangesResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.amqp.core.Message;
-import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
-
-import java.util.UUID;
 
 /**
  * Передает событие из RabbitMQ в gRPC и обратно.
@@ -39,6 +40,7 @@ public class MatchFinishedListener {
     }
 
     @RabbitListener(queues = "q.matchmaking.enrichment.match-finished", messageConverter = "")
+    @SuppressWarnings("UseSpecificCatch")
     public void handleMatchFinished(Message message) {
         try {
             JsonNode root = jsonMapper.readTree(message.getBody());
