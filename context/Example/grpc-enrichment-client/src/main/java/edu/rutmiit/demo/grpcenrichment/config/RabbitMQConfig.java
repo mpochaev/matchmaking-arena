@@ -1,6 +1,6 @@
-package edu.rutmiit.demo.grpcenrichment.config;
+package edu.rutmiit.pochaev.grpcenrichment.config;
 
-import edu.rutmiit.demo.events.RoutingKeys;
+import edu.rutmiit.pochaev.events.RoutingKeys;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;

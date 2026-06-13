@@ -1,7 +1,7 @@
-package edu.rutmiit.demo.notificationservice.listener;
+package edu.rutmiit.pochaev.notificationservice.listener;
 
-import edu.rutmiit.demo.events.*;
-import edu.rutmiit.demo.notificationservice.websocket.NotificationWebSocketHandler;
+import edu.rutmiit.pochaev.events.*;
+import edu.rutmiit.pochaev.notificationservice.websocket.NotificationWebSocketHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.Message;

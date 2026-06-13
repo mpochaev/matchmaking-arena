@@ -216,10 +216,12 @@ Swagger -> matchmaking -> RabbitMQ -> match-log-service
 
 ## 3. Быстрый запуск в IntelliJ IDEA
 
-Открой проект как Maven-проект из папки:
+Открой проект как Maven-проект из папки и выбери JDK 21:
 
 ```powershell
 cd "C:\Users\colonialrift\Dropbox\SOP\Matchmaking Arena"
+$env:JAVA_HOME="C:\Program Files\Eclipse Adoptium\jdk-21.0.2.13-hotspot"
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
 ```
 
 Все команды можно писать в терминале IDEA. Для каждого сервиса открой отдельную вкладку терминала.

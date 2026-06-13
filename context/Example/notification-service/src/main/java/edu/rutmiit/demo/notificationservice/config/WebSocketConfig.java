@@ -1,6 +1,6 @@
-package edu.rutmiit.demo.notificationservice.config;
+package edu.rutmiit.pochaev.notificationservice.config;
 
-import edu.rutmiit.demo.notificationservice.websocket.NotificationWebSocketHandler;
+import edu.rutmiit.pochaev.notificationservice.websocket.NotificationWebSocketHandler;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;

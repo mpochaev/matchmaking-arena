@@ -14,7 +14,7 @@
         от одного и того же кода.
     -->
 
-    <groupId>edu.rutmiit.demo</groupId>
+    <groupId>edu.rutmiit.pochaev</groupId>
     <artifactId>books-grpc-contract</artifactId>
     <version>1.0</version>
     <name>books-grpc-contract</name>

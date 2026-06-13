@@ -1,6 +1,6 @@
-package edu.rutmiit.demo.grpcanalytics.config;
+package edu.rutmiit.pochaev.grpcanalytics.config;
 
-import edu.rutmiit.demo.grpcanalytics.service.BookAnalyticsServiceImpl;
+import edu.rutmiit.pochaev.grpcanalytics.service.BookAnalyticsServiceImpl;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import org.slf4j.Logger;

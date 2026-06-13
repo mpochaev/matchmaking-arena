@@ -1,6 +1,6 @@
-package edu.rutmiit.demo.grpcenrichment.config;
+package edu.rutmiit.pochaev.grpcenrichment.config;
 
-import edu.rutmiit.demo.grpc.BookAnalyticsGrpc;
+import edu.rutmiit.pochaev.grpc.BookAnalyticsGrpc;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import org.slf4j.Logger;

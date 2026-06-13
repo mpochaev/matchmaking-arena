@@ -1,11 +1,11 @@
-package edu.rutmiit.demo.grpcenrichment.listener;
+package edu.rutmiit.pochaev.grpcenrichment.listener;
 
-import edu.rutmiit.demo.events.BookEvent;
-import edu.rutmiit.demo.events.EventMetadata;
-import edu.rutmiit.demo.grpc.AnalyzeBookRequest;
-import edu.rutmiit.demo.grpc.BookAnalysisResponse;
-import edu.rutmiit.demo.grpc.BookAnalyticsGrpc;
-import edu.rutmiit.demo.grpcenrichment.publisher.EnrichmentEventPublisher;
+import edu.rutmiit.pochaev.events.BookEvent;
+import edu.rutmiit.pochaev.events.EventMetadata;
+import edu.rutmiit.pochaev.grpc.AnalyzeBookRequest;
+import edu.rutmiit.pochaev.grpc.BookAnalysisResponse;
+import edu.rutmiit.pochaev.grpc.BookAnalyticsGrpc;
+import edu.rutmiit.pochaev.grpcenrichment.publisher.EnrichmentEventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.Message;

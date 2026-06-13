@@ -26,7 +26,7 @@
         Далее в браузере http://localhost:8084/
     -->
 
-    <groupId>edu.rutmiit.demo</groupId>
+    <groupId>edu.rutmiit.pochaev</groupId>
     <artifactId>demo-rest-root</artifactId>
     <version>1.0</version>
     <packaging>pom</packaging>

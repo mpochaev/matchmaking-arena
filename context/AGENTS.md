@@ -124,9 +124,9 @@ Important: root POM is only an aggregator. Individual modules inherit from `spri
 Contains:
 
 ```text
-edu.rutmiit.demo.matchmakingapicontract.dto
-edu.rutmiit.demo.matchmakingapicontract.endpoints
-edu.rutmiit.demo.matchmakingapicontract.exception
+edu.rutmiit.pochaev.matchmakingapicontract.dto
+edu.rutmiit.pochaev.matchmakingapicontract.endpoints
+edu.rutmiit.pochaev.matchmakingapicontract.exception
 src/main/resources/graphql/schema.graphqls
 ```
 

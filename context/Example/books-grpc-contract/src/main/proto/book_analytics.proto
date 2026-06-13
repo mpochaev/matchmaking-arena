@@ -8,21 +8,19 @@
 
 syntax = "proto3";
 
-// Java-пакет для сгенерированных классов
-option java_package = "edu.rutmiit.demo.grpc";
+// Пакет proto (для именования в других .proto файлах при импорте)
+package bookanalytics;
 
 // Все сгенерированные классы будут в отдельных файлах (не во вложенных классах)
 option java_multiple_files = true;
-
-// Пакет proto (для именования в других .proto файлах при импорте)
-package bookanalytics;
+// Java-пакет для сгенерированных классов
+option java_package = "edu.rutmiit.pochaev.grpc";
 
 // Сервисы
 // Unary RPC - один запрос это один ответ (типа аналог REST GET/POST)
 service BookAnalytics {
-
-    // Анализирует книгу и возвращает вычисленные метрики
-    rpc AnalyzeBook (AnalyzeBookRequest) returns (BookAnalysisResponse);
+  // Анализирует книгу и возвращает вычисленные метрики
+  rpc AnalyzeBook(AnalyzeBookRequest) returns (BookAnalysisResponse);
 }
 
 // Сообщения
@@ -33,19 +31,19 @@ service BookAnalytics {
 
 // Запрос на анализ книги — данные, необходимые для вычисления метрик.
 message AnalyzeBookRequest {
-    int64  book_id        = 1;  // ID книги в системе
-    string title          = 2;  // Название книги
-    string genre          = 3;  // Жанр (Роман, Поэма, Пьеса...)
-    int32  published_year = 4;  // Год публикации
-    string language       = 5;  // Язык (ru, en...)
-    string author_name    = 6;  // Имя автора (для контекста анализа)
+  int64 book_id = 1; // ID книги в системе
+  string title = 2; // Название книги
+  string genre = 3; // Жанр (Роман, Поэма, Пьеса...)
+  int32 published_year = 4; // Год публикации
+  string language = 5; // Язык (ru, en...)
+  string author_name = 6; // Имя автора (для контекста анализа)
 }
 
 // Ответ с результатами анализа — вычисленные метрики книги.
 message BookAnalysisResponse {
-    int64  book_id                    = 1;  // ID книги (echo back)
-    int32  estimated_reading_minutes  = 2;  // Оценка времени чтения (в минутах)
-    string difficulty_level           = 3;  // Уровень сложности: EASY, MEDIUM, HARD, CLASSIC
-    double recommendation_score       = 4;  // Рекомендательный балл (0.0 — 10.0)
-    string era_classification         = 5;  // Эпоха: ANCIENT, CLASSICAL, MODERN, CONTEMPORARY
+  int64 book_id = 1; // ID книги (echo back)
+  int32 estimated_reading_minutes = 2; // Оценка времени чтения (в минутах)
+  string difficulty_level = 3; // Уровень сложности: EASY, MEDIUM, HARD, CLASSIC
+  double recommendation_score = 4; // Рекомендательный балл (0.0 — 10.0)
+  string era_classification = 5; // Эпоха: ANCIENT, CLASSICAL, MODERN, CONTEMPORARY
 }

@@ -1,7 +1,0 @@
-package edu.rutmiit.demo.matchmakingapicontract.exception;
-
-public class ResourceNotFoundException extends RuntimeException {
-    public ResourceNotFoundException(String message) {
-        super(message);
-    }
-}

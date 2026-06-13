@@ -1,8 +1,8 @@
-package edu.rutmiit.demo.grpcenrichment.publisher;
+package edu.rutmiit.pochaev.grpcenrichment.publisher;
 
-import edu.rutmiit.demo.events.BookEvent;
-import edu.rutmiit.demo.events.EventEnvelope;
-import edu.rutmiit.demo.events.RoutingKeys;
+import edu.rutmiit.pochaev.events.BookEvent;
+import edu.rutmiit.pochaev.events.EventEnvelope;
+import edu.rutmiit.pochaev.events.RoutingKeys;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;

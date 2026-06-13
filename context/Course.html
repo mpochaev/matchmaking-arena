@@ -593,7 +593,7 @@ graph LR
 <section id="project-map">
   <span class="sec-kicker">Раздел 2 · Карта</span>
   <h2>Карта проекта: 8 модулей, 2 вида</h2>
-  <p>Проект – это один <strong>Maven-агрегатор</strong> (корневой <code>pom.xml</code> с <code>packaging=pom</code>) и 8 модулей внутри. GroupId у всех – <code>edu.rutmiit.demo</code>, версия – <code>6.0-SNAPSHOT</code>.</p>
+  <p>Проект – это один <strong>Maven-агрегатор</strong> (корневой <code>pom.xml</code> с <code>packaging=pom</code>) и 8 модулей внутри. GroupId у всех – <code>edu.rutmiit.pochaev</code>, версия – <code>6.0-SNAPSHOT</code>.</p>
 
   <h3>Дерево модулей</h3>
   <div class="codeblock">
@@ -1774,7 +1774,7 @@ public class MatchLogController {
     <div class="code-panes"><div class="code-pane active" id="proto-1"><pre class="collapsed"><code class="language-protobuf">syntax = "proto3";
 package matchanalytics;
 option java_multiple_files = true;
-option java_package = "edu.rutmiit.demo.matchmakinggrpc";
+option java_package = "edu.rutmiit.pochaev.matchmakinggrpc";
 
 // унарный RPC: один запрос -> один ответ
 service MatchRankEnrichment {
@@ -1805,7 +1805,7 @@ message RankChangesResponse {
     <div class="cn"><b>service</b><span>описывает удалённый сервис и его методы (rpc). Здесь один – <code>CalculateRankChanges</code>.</span></div>
     <div class="cn"><b>message</b><span>структура данных (как DTO). Числа <code>= 1, = 2</code> – это номера полей в бинарном формате.</span></div>
     <div class="cn"><b>repeated</b><span>«список/массив». <code>repeated MatchPlayer players</code> = список игроков.</span></div>
-    <div class="cn"><b>java_package</b><span>куда сложить сгенерированные классы: <code>edu.rutmiit.demo.matchmakinggrpc</code>.</span></div>
+    <div class="cn"><b>java_package</b><span>куда сложить сгенерированные классы: <code>edu.rutmiit.pochaev.matchmakinggrpc</code>.</span></div>
   </div>
 
   <h3>Сервер: как считается рейтинг (+25 / −10)</h3>

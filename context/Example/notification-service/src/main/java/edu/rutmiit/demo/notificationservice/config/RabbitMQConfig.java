@@ -1,6 +1,6 @@
-package edu.rutmiit.demo.notificationservice.config;
+package edu.rutmiit.pochaev.notificationservice.config;
 
-import edu.rutmiit.demo.events.RoutingKeys;
+import edu.rutmiit.pochaev.events.RoutingKeys;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;

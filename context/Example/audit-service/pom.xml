@@ -8,7 +8,7 @@
         <version>4.0.3</version>
         <relativePath/>
     </parent>
-    <groupId>edu.rutmiit.demo</groupId>
+    <groupId>edu.rutmiit.pochaev</groupId>
     <artifactId>audit-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>audit-service</name>
@@ -40,7 +40,7 @@
 
         <!-- Контракт доменных событий — общий между publisher и consumer -->
         <dependency>
-            <groupId>edu.rutmiit.demo</groupId>
+            <groupId>edu.rutmiit.pochaev</groupId>
             <artifactId>books-events-contract</artifactId>
             <version>1.0</version>
         </dependency>

@@ -4,9 +4,9 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>edu.rutmiit.demo</groupId>
+    <groupId>edu.rutmiit.pochaev</groupId>
     <artifactId>matchmaking-grpc-contract</artifactId>
-    <version>6.0-SNAPSHOT</version>
+    <version>7.0</version>
     <name>matchmaking-grpc-contract</name>
     <description>gRPC contract for match rank enrichment</description>
 

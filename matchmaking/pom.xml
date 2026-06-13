@@ -11,9 +11,9 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.example</groupId>
+    <groupId>edu.rutmiit.pochaev</groupId>
     <artifactId>matchmaking</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>7.0</version>
     <name>matchmaking</name>
     <description>Matchmaking demo application</description>
 
@@ -64,9 +64,9 @@
         </dependency>
 
         <dependency>
-            <groupId>edu.rutmiit.demo</groupId>
+            <groupId>edu.rutmiit.pochaev</groupId>
             <artifactId>matchmaking-api-contract</artifactId>
-            <version>6.0-SNAPSHOT</version>
+            <version>7.0</version>
         </dependency>
 
         <!-- Spring AMQP для публикации доменных событий в RabbitMQ -->
@@ -77,9 +77,9 @@
 
         <!-- Общий контракт событий для matchmaking и match-log-service -->
         <dependency>
-            <groupId>edu.rutmiit.demo</groupId>
+            <groupId>edu.rutmiit.pochaev</groupId>
             <artifactId>matchmaking-events-contract</artifactId>
-            <version>6.0-SNAPSHOT</version>
+            <version>7.0</version>
         </dependency>
 
         <dependency>

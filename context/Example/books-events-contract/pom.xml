@@ -10,7 +10,7 @@
         Используется двумя сторонами: publisher (demo-rest) и consumer (audit-service).
     -->
 
-    <groupId>edu.rutmiit.demo</groupId>
+    <groupId>edu.rutmiit.pochaev</groupId>
     <artifactId>books-events-contract</artifactId>
     <version>1.0</version>
     <name>books-events-contract</name>

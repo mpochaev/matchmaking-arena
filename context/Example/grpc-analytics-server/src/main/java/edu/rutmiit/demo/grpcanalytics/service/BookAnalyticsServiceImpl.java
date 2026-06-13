@@ -1,8 +1,8 @@
-package edu.rutmiit.demo.grpcanalytics.service;
+package edu.rutmiit.pochaev.grpcanalytics.service;
 
-import edu.rutmiit.demo.grpc.AnalyzeBookRequest;
-import edu.rutmiit.demo.grpc.BookAnalysisResponse;
-import edu.rutmiit.demo.grpc.BookAnalyticsGrpc;
+import edu.rutmiit.pochaev.grpc.AnalyzeBookRequest;
+import edu.rutmiit.pochaev.grpc.BookAnalysisResponse;
+import edu.rutmiit.pochaev.grpc.BookAnalyticsGrpc;
 import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
