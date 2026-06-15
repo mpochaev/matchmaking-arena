@@ -1,5 +1,27 @@
 package edu.rutmiit.pochaev.service;
 
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+
 import edu.rutmiit.pochaev.config.RabbitMQConfig;
 import edu.rutmiit.pochaev.event.LobbyEventPublisher;
 import edu.rutmiit.pochaev.event.MatchEventPublisher;
@@ -18,27 +40,6 @@ import edu.rutmiit.pochaev.matchmakingapicontract.exception.ResourceNotFoundExce
 import edu.rutmiit.pochaev.matchmakingevents.EventMetadata;
 import edu.rutmiit.pochaev.matchmakingevents.MatchEvent;
 import jakarta.annotation.PreDestroy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.amqp.core.Message;
-import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
-
-import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -94,6 +95,7 @@ public class MatchmakingService {
     }
 
     @RabbitListener(queues = RabbitMQConfig.MATCH_ENRICHED_QUEUE, messageConverter = "")
+    @SuppressWarnings("UseSpecificCatch")
     public synchronized void handleMatchEnriched(Message message) {
         try {
             JsonNode root = jsonMapper.readTree(message.getBody());
@@ -145,7 +147,8 @@ public class MatchmakingService {
 
     private PlayerResponse createPlayerInternal(PlayerRequest request, boolean publishEvent) {
         String region = normalize(request.region() == null || request.region().isBlank() ? "EU" : request.region());
-        int rating = request.rating() == null ? 1000 : request.rating();
+        Integer requestedRating = request.rating();
+        int rating = requestedRating == null ? 1000 : requestedRating;
         String rank = rankByRating(rating);
 
         PlayerState player = new PlayerState(
@@ -211,7 +214,8 @@ public class MatchmakingService {
         String mode = normalize(request.mode());
         String region = normalize(request.region());
         String rank = normalize(request.rank());
-        int timeoutSeconds = request.timeoutSeconds() == null ? DEFAULT_TIMEOUT_SECONDS : request.timeoutSeconds();
+        Integer requestedTimeoutSeconds = request.timeoutSeconds();
+        int timeoutSeconds = requestedTimeoutSeconds != null ? requestedTimeoutSeconds : DEFAULT_TIMEOUT_SECONDS;
 
         ensureAllowedMode(mode);
         ensurePlayerCanJoinQueue(player.id);
@@ -424,7 +428,8 @@ public class MatchmakingService {
         lobby.startedAt = startedAt;
 
         UUID matchId = UUID.randomUUID();
-        List<UUID> matchPlayerIds = List.copyOf(lobby.playerIds);
+        List<UUID> matchPlayerIds = new ArrayList<>();
+        matchPlayerIds.addAll(lobby.playerIds);
         List<MatchEventResponse> events = new ArrayList<>();
 
         MatchEventResponse startEvent = event(
@@ -501,17 +506,13 @@ public class MatchmakingService {
         int eventType = ThreadLocalRandom.current().nextInt(5);
         MatchEventResponse progressEvent;
 
-        if (eventType == 0) {
-            progressEvent = event("PLAYER_HIT", actor.nickname + " попал по " + target.nickname, actor.id, target.id, occurredAt);
-        } else if (eventType == 1) {
-            progressEvent = event("PLAYER_DODGED", actor.nickname + " увернулся от атаки", actor.id, null, occurredAt);
-        } else if (eventType == 2) {
-            progressEvent = event("PLAYER_FOUND_LOOT", actor.nickname + " нашел полезный предмет", actor.id, null, occurredAt);
-        } else if (eventType == 3) {
-            progressEvent = event("ZONE_DAMAGE", actor.nickname + " получил урон от зоны", actor.id, null, occurredAt);
-        } else {
-            progressEvent = event("PLAYER_HEALED", actor.nickname + " использовал аптечку", actor.id, null, occurredAt);
-        }
+        progressEvent = switch (eventType) {
+            case 0 -> event("PLAYER_HIT", actor.nickname + " попал по " + target.nickname, actor.id, target.id, occurredAt);
+            case 1 -> event("PLAYER_DODGED", actor.nickname + " увернулся от атаки", actor.id, null, occurredAt);
+            case 2 -> event("PLAYER_FOUND_LOOT", actor.nickname + " нашел полезный предмет", actor.id, null, occurredAt);
+            case 3 -> event("ZONE_DAMAGE", actor.nickname + " получил урон от зоны", actor.id, null, occurredAt);
+            default -> event("PLAYER_HEALED", actor.nickname + " использовал аптечку", actor.id, null, occurredAt);
+        };
 
         match.events().add(progressEvent);
         matchEventPublisher.publishProgress(toMatchResponse(match), progressEvent);
@@ -726,6 +727,7 @@ public class MatchmakingService {
             String region,
             String rank,
             String status,
+            @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
             List<UUID> playerIds,
             List<MatchEventResponse> events,
             UUID winnerPlayerId,
