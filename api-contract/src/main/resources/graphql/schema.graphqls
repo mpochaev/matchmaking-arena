@@ -1,23 +1,66 @@
 """Дата и время с часовым поясом, например 2026-04-29T17:30:00+03:00"""
 scalar DateTime
 
+enum Region {
+    RU
+    EU
+    AS
+    US
+}
+
+enum MatchMode {
+    BATTLE_ROYALE
+    SURVIVAL
+    DEATHMATCH
+}
+
+enum Rank {
+    BRONZE
+    SILVER
+    GOLD
+    PLATINUM
+    DIAMOND
+}
+
+enum LobbyStatus {
+    WAITING
+    FORMED
+    DISBANDED
+}
+
+enum MatchStatus {
+    IN_PROGRESS
+    FINISHED
+}
+
+enum MatchEventType {
+    MATCH_STARTED
+    PLAYER_HIT
+    PLAYER_DODGED
+    PLAYER_FOUND_LOOT
+    ZONE_DAMAGE
+    PLAYER_HEALED
+    PLAYER_ELIMINATED
+    MATCH_FINISHED
+}
+
 """Игрок, который может попасть в очередь ожидания игры."""
 type Player {
     id: ID!
     nickname: String!
     rating: Int!
-    region: String!
-    rank: String!
+    region: Region!
+    rank: Rank!
     createdAt: DateTime!
 }
 
 """Лобби это очередь ожидания для игроков одного режима, региона и ранга."""
 type Lobby {
     id: ID!
-    mode: String!
-    region: String!
-    rank: String!
-    status: String!
+    mode: MatchMode!
+    region: Region!
+    rank: Rank!
+    status: LobbyStatus!
     minPlayers: Int!
     playerCount: Int!
     averageRating: Float
@@ -31,7 +74,7 @@ type Lobby {
 """Событие внутри учебной симуляции матча."""
 type MatchEvent {
     id: ID!
-    type: String!
+    type: MatchEventType!
     message: String!
     actorPlayerId: ID
     targetPlayerId: ID
@@ -42,10 +85,10 @@ type MatchEvent {
 type Match {
     id: ID!
     lobby: Lobby!
-    mode: String!
-    region: String!
-    rank: String!
-    status: String!
+    mode: MatchMode!
+    region: Region!
+    rank: Rank!
+    status: MatchStatus!
     players: [Player!]!
     events: [MatchEvent!]!
     winner: Player
@@ -82,36 +125,34 @@ type PageInfo {
 }
 
 input PlayerFilter {
-    region: String
-    rank: String
+    region: Region
+    rank: Rank
 }
 
 input LobbyFilter {
-    status: String
-    region: String
-    rank: String
-    mode: String
+    status: LobbyStatus
+    region: Region
+    rank: Rank
+    mode: MatchMode
 }
 
 input MatchFilter {
-    status: String
-    region: String
-    rank: String
-    mode: String
+    status: MatchStatus
+    region: Region
+    rank: Rank
+    mode: MatchMode
 }
 
 input CreatePlayerInput {
     nickname: String!
     rating: Int = 1000
-    region: String = "EU"
-    rank: String = "SILVER"
+    region: Region = RU
 }
 
 input JoinLobbyInput {
     playerId: ID!
-    mode: String!
-    region: String!
-    rank: String!
+    mode: MatchMode!
+    region: Region!
     timeoutSeconds: Int = 30
 }
 
@@ -121,7 +162,7 @@ type Query {
 
     lobby(id: ID!): Lobby
     lobbies(filter: LobbyFilter, page: Int = 0, size: Int = 20): LobbyConnection!
-    lobbiesByRegion(region: String!, page: Int = 0, size: Int = 20): LobbyConnection!
+    lobbiesByRegion(region: Region!, page: Int = 0, size: Int = 20): LobbyConnection!
 
     match(id: ID!): Match
     matches(filter: MatchFilter, page: Int = 0, size: Int = 20): MatchConnection!
@@ -130,8 +171,11 @@ type Query {
 type Mutation {
     createPlayer(input: CreatePlayerInput!): Player!
 
-    """Добавляет игрока в WAITING-лобби или создает новое. После 3 или 4 игроков матч стартует через 10 секунд, при 5 игроках сразу."""
+    """Добавляет игрока в WAITING-лобби или создает новое. Ранг берется из Player.rank."""
     joinLobby(input: JoinLobbyInput!): Lobby!
+
+    """Убирает игрока из WAITING-лобби."""
+    leaveLobby(id: ID!, playerId: ID!): Lobby!
 
     """Распускает WAITING-лобби вручную и возвращает измененный объект."""
     disbandLobby(id: ID!): Lobby!

@@ -29,9 +29,9 @@ public class LobbyEventPublisher {
     public void publishCreated(LobbyResponse lobby) {
         var event = new LobbyEvent.Created(
                 lobby.id(),
-                lobby.mode(),
-                lobby.region(),
-                lobby.rank(),
+                lobby.mode().name(),
+                lobby.region().name(),
+                lobby.rank().name(),
                 lobby.minPlayers(),
                 lobby.deadlineAt()
         );

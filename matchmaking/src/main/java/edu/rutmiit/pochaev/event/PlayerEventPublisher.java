@@ -27,8 +27,8 @@ public class PlayerEventPublisher {
                 player.id(),
                 player.nickname(),
                 player.rating(),
-                player.region(),
-                player.rank()
+                player.region().name(),
+                player.rank().name()
         );
         send(RoutingKeys.PLAYER_CREATED, event);
     }

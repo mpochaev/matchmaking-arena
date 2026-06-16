@@ -1,17 +1,21 @@
 package edu.rutmiit.pochaev.graphql.fetcher;
 
-import edu.rutmiit.pochaev.graphql.types.JoinLobbyInputGql;
-import edu.rutmiit.pochaev.graphql.types.LobbyConnectionGql;
-import edu.rutmiit.pochaev.graphql.types.LobbyFilterGql;
-import edu.rutmiit.pochaev.graphql.types.PageInfoGql;
-import edu.rutmiit.pochaev.service.MatchmakingService;
 import com.netflix.graphql.dgs.DgsComponent;
 import com.netflix.graphql.dgs.DgsMutation;
 import com.netflix.graphql.dgs.DgsQuery;
 import com.netflix.graphql.dgs.InputArgument;
+import edu.rutmiit.pochaev.graphql.types.JoinLobbyInputGql;
+import edu.rutmiit.pochaev.graphql.types.LobbyConnectionGql;
+import edu.rutmiit.pochaev.graphql.types.LobbyFilterGql;
+import edu.rutmiit.pochaev.graphql.types.PageInfoGql;
 import edu.rutmiit.pochaev.matchmakingapicontract.dto.JoinLobbyRequest;
 import edu.rutmiit.pochaev.matchmakingapicontract.dto.LobbyResponse;
 import edu.rutmiit.pochaev.matchmakingapicontract.dto.PagedResponse;
+import edu.rutmiit.pochaev.matchmakingapicontract.enums.LobbyStatus;
+import edu.rutmiit.pochaev.matchmakingapicontract.enums.MatchMode;
+import edu.rutmiit.pochaev.matchmakingapicontract.enums.Rank;
+import edu.rutmiit.pochaev.matchmakingapicontract.enums.Region;
+import edu.rutmiit.pochaev.service.LobbyService;
 
 import java.util.List;
 import java.util.UUID;
@@ -19,26 +23,26 @@ import java.util.UUID;
 @DgsComponent
 public class LobbyDataFetcher {
 
-    private final MatchmakingService matchmakingService;
+    private final LobbyService lobbyService;
 
-    public LobbyDataFetcher(MatchmakingService matchmakingService) {
-        this.matchmakingService = matchmakingService;
+    public LobbyDataFetcher(LobbyService lobbyService) {
+        this.lobbyService = lobbyService;
     }
 
     @DgsQuery
     public LobbyResponse lobby(@InputArgument String id) {
-        return matchmakingService.findLobbyById(UUID.fromString(id));
+        return lobbyService.findLobbyById(UUID.fromString(id));
     }
 
     @DgsQuery
     public LobbyConnectionGql lobbies(@InputArgument LobbyFilterGql filter,
                                       @InputArgument Integer page,
                                       @InputArgument Integer size) {
-        String status = filter == null ? null : filter.status();
-        String region = filter == null ? null : filter.region();
-        String rank = filter == null ? null : filter.rank();
-        String mode = filter == null ? null : filter.mode();
-        PagedResponse<LobbyResponse> paged = matchmakingService.findLobbies(
+        LobbyStatus status = filter == null ? null : filter.status();
+        Region region = filter == null ? null : filter.region();
+        Rank rank = filter == null ? null : filter.rank();
+        MatchMode mode = filter == null ? null : filter.mode();
+        PagedResponse<LobbyResponse> paged = lobbyService.findLobbies(
                 status,
                 region,
                 rank,
@@ -53,12 +57,11 @@ public class LobbyDataFetcher {
         );
     }
 
-
     @DgsQuery
-    public LobbyConnectionGql lobbiesByRegion(@InputArgument String region,
+    public LobbyConnectionGql lobbiesByRegion(@InputArgument Region region,
                                               @InputArgument Integer page,
                                               @InputArgument Integer size) {
-        PagedResponse<LobbyResponse> paged = matchmakingService.findLobbiesByRegion(
+        PagedResponse<LobbyResponse> paged = lobbyService.findLobbiesByRegion(
                 region,
                 page == null ? 0 : page,
                 size == null ? 20 : size
@@ -72,22 +75,26 @@ public class LobbyDataFetcher {
 
     @DgsMutation
     public LobbyResponse joinLobby(@InputArgument JoinLobbyInputGql input) {
-        return matchmakingService.joinLobby(new JoinLobbyRequest(
+        return lobbyService.joinLobby(new JoinLobbyRequest(
                 UUID.fromString(input.playerId()),
                 input.mode(),
                 input.region(),
-                input.rank(),
                 input.timeoutSeconds()
         ));
     }
 
     @DgsMutation
+    public LobbyResponse leaveLobby(@InputArgument String id, @InputArgument String playerId) {
+        return lobbyService.leaveLobby(UUID.fromString(id), UUID.fromString(playerId));
+    }
+
+    @DgsMutation
     public LobbyResponse disbandLobby(@InputArgument String id) {
-        return matchmakingService.disbandLobby(UUID.fromString(id));
+        return lobbyService.disbandLobby(UUID.fromString(id));
     }
 
     @DgsMutation
     public List<LobbyResponse> processLobbyTimeouts() {
-        return matchmakingService.processExpiredLobbies();
+        return lobbyService.processExpiredLobbies();
     }
 }

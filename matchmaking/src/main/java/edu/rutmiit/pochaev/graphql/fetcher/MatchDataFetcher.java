@@ -1,40 +1,44 @@
 package edu.rutmiit.pochaev.graphql.fetcher;
 
-import edu.rutmiit.pochaev.graphql.types.MatchConnectionGql;
-import edu.rutmiit.pochaev.graphql.types.MatchFilterGql;
-import edu.rutmiit.pochaev.graphql.types.PageInfoGql;
-import edu.rutmiit.pochaev.service.MatchmakingService;
 import com.netflix.graphql.dgs.DgsComponent;
 import com.netflix.graphql.dgs.DgsQuery;
 import com.netflix.graphql.dgs.InputArgument;
+import edu.rutmiit.pochaev.graphql.types.MatchConnectionGql;
+import edu.rutmiit.pochaev.graphql.types.MatchFilterGql;
+import edu.rutmiit.pochaev.graphql.types.PageInfoGql;
 import edu.rutmiit.pochaev.matchmakingapicontract.dto.MatchResponse;
 import edu.rutmiit.pochaev.matchmakingapicontract.dto.PagedResponse;
+import edu.rutmiit.pochaev.matchmakingapicontract.enums.MatchMode;
+import edu.rutmiit.pochaev.matchmakingapicontract.enums.MatchStatus;
+import edu.rutmiit.pochaev.matchmakingapicontract.enums.Rank;
+import edu.rutmiit.pochaev.matchmakingapicontract.enums.Region;
+import edu.rutmiit.pochaev.service.MatchService;
 
 import java.util.UUID;
 
 @DgsComponent
 public class MatchDataFetcher {
 
-    private final MatchmakingService matchmakingService;
+    private final MatchService matchService;
 
-    public MatchDataFetcher(MatchmakingService matchmakingService) {
-        this.matchmakingService = matchmakingService;
+    public MatchDataFetcher(MatchService matchService) {
+        this.matchService = matchService;
     }
 
     @DgsQuery
     public MatchResponse match(@InputArgument String id) {
-        return matchmakingService.findMatchById(UUID.fromString(id));
+        return matchService.findMatchById(UUID.fromString(id));
     }
 
     @DgsQuery
     public MatchConnectionGql matches(@InputArgument MatchFilterGql filter,
                                       @InputArgument Integer page,
                                       @InputArgument Integer size) {
-        String status = filter == null ? null : filter.status();
-        String region = filter == null ? null : filter.region();
-        String rank = filter == null ? null : filter.rank();
-        String mode = filter == null ? null : filter.mode();
-        PagedResponse<MatchResponse> paged = matchmakingService.findMatches(
+        MatchStatus status = filter == null ? null : filter.status();
+        Region region = filter == null ? null : filter.region();
+        Rank rank = filter == null ? null : filter.rank();
+        MatchMode mode = filter == null ? null : filter.mode();
+        PagedResponse<MatchResponse> paged = matchService.findMatches(
                 status,
                 region,
                 rank,

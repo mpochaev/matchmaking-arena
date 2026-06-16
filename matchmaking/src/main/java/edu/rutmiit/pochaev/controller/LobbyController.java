@@ -1,93 +1,94 @@
 package edu.rutmiit.pochaev.controller;
 
-import edu.rutmiit.pochaev.service.MatchmakingService;
+import edu.rutmiit.pochaev.assembler.LobbyModelAssembler;
 import edu.rutmiit.pochaev.matchmakingapicontract.dto.JoinLobbyRequest;
 import edu.rutmiit.pochaev.matchmakingapicontract.dto.LobbyResponse;
 import edu.rutmiit.pochaev.matchmakingapicontract.dto.PagedResponse;
 import edu.rutmiit.pochaev.matchmakingapicontract.endpoints.LobbyApi;
+import edu.rutmiit.pochaev.matchmakingapicontract.enums.LobbyStatus;
+import edu.rutmiit.pochaev.matchmakingapicontract.enums.MatchMode;
+import edu.rutmiit.pochaev.matchmakingapicontract.enums.Rank;
+import edu.rutmiit.pochaev.matchmakingapicontract.enums.Region;
+import edu.rutmiit.pochaev.service.LobbyService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.web.PagedResourcesAssembler;
+import org.springframework.hateoas.CollectionModel;
 import org.springframework.hateoas.EntityModel;
-import org.springframework.hateoas.Link;
 import org.springframework.hateoas.PagedModel;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
+
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
 @RestController
 public class LobbyController implements LobbyApi {
 
-    private final MatchmakingService matchmakingService;
+    private final LobbyService lobbyService;
+    private final LobbyModelAssembler lobbyModelAssembler;
+    private final PagedResourcesAssembler<LobbyResponse> pagedResourcesAssembler;
 
-    public LobbyController(MatchmakingService matchmakingService) {
-        this.matchmakingService = matchmakingService;
+    public LobbyController(LobbyService lobbyService,
+                           LobbyModelAssembler lobbyModelAssembler,
+                           PagedResourcesAssembler<LobbyResponse> pagedResourcesAssembler) {
+        this.lobbyService = lobbyService;
+        this.lobbyModelAssembler = lobbyModelAssembler;
+        this.pagedResourcesAssembler = pagedResourcesAssembler;
     }
 
     @Override
-    public PagedModel<EntityModel<LobbyResponse>> getAllLobbies(String status,
-                                                               String region,
-                                                               String rank,
-                                                               String mode,
+    public PagedModel<EntityModel<LobbyResponse>> getAllLobbies(LobbyStatus status,
+                                                               Region region,
+                                                               Rank rank,
+                                                               MatchMode mode,
                                                                int page,
                                                                int size) {
-        PagedResponse<LobbyResponse> paged = matchmakingService.findLobbies(status, region, rank, mode, page, size);
-        List<EntityModel<LobbyResponse>> content = paged.content().stream()
-                .map(this::toModel)
-                .toList();
-        return toPagedModel(content, paged, "/api/lobbies");
+        PagedResponse<LobbyResponse> paged = lobbyService.findLobbies(status, region, rank, mode, page, size);
+        Page<LobbyResponse> springPage = new PageImpl<>(
+                paged.content(),
+                PageRequest.of(paged.pageNumber(), paged.pageSize()),
+                paged.totalElements()
+        );
+        return pagedResourcesAssembler.toModel(springPage, lobbyModelAssembler);
     }
 
     @Override
     public EntityModel<LobbyResponse> getLobbyById(UUID id) {
-        return toModel(matchmakingService.findLobbyById(id));
+        return lobbyModelAssembler.toModel(lobbyService.findLobbyById(id));
     }
 
     @Override
     public ResponseEntity<EntityModel<LobbyResponse>> joinLobby(JoinLobbyRequest request) {
+        EntityModel<LobbyResponse> model = lobbyModelAssembler.toModel(lobbyService.joinLobby(request));
         return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(toModel(matchmakingService.joinLobby(request)));
+                .created(model.getRequiredLink("self").toUri())
+                .body(model);
+    }
+
+    @Override
+    public EntityModel<LobbyResponse> leaveLobby(UUID id, UUID playerId) {
+        return lobbyModelAssembler.toModel(lobbyService.leaveLobby(id, playerId));
     }
 
     @Override
     public EntityModel<LobbyResponse> disbandLobby(UUID id) {
-        return toModel(matchmakingService.disbandLobby(id));
+        return lobbyModelAssembler.toModel(lobbyService.disbandLobby(id));
     }
 
     @Override
-    public List<LobbyResponse> processTimeouts() {
-        return matchmakingService.processExpiredLobbies();
-    }
+    public CollectionModel<EntityModel<LobbyResponse>> processTimeouts() {
+        var lobbies = lobbyService.processExpiredLobbies().stream()
+                .map(lobbyModelAssembler::toModel)
+                .toList();
 
-    private EntityModel<LobbyResponse> toModel(LobbyResponse lobby) {
-        EntityModel<LobbyResponse> model = EntityModel.of(lobby);
-        model.add(Link.of("/api/lobbies/" + lobby.id()).withSelfRel());
-        model.add(Link.of("/api/lobbies").withRel("lobbies"));
-        model.add(Link.of("/api/lobbies/join").withRel("join-lobby"));
-        if ("WAITING".equalsIgnoreCase(lobby.status())) {
-            model.add(Link.of("/api/lobbies/" + lobby.id() + "/disband").withRel("disband"));
-        }
-        if (lobby.matchId() != null) {
-            model.add(Link.of("/api/matches/" + lobby.matchId()).withRel("match"));
-        }
-        return model;
-    }
-
-    private <T> PagedModel<EntityModel<T>> toPagedModel(List<EntityModel<T>> content,
-                                                       PagedResponse<?> paged,
-                                                       String basePath) {
-        PagedModel.PageMetadata metadata = new PagedModel.PageMetadata(
-                paged.pageSize(), paged.pageNumber(), paged.totalElements(), paged.totalPages());
-        List<Link> links = new ArrayList<>();
-        links.add(Link.of(basePath + "?page=" + paged.pageNumber() + "&size=" + paged.pageSize()).withSelfRel());
-        if (paged.pageNumber() > 0) {
-            links.add(Link.of(basePath + "?page=" + (paged.pageNumber() - 1) + "&size=" + paged.pageSize()).withRel("prev"));
-        }
-        if (!paged.last()) {
-            links.add(Link.of(basePath + "?page=" + (paged.pageNumber() + 1) + "&size=" + paged.pageSize()).withRel("next"));
-        }
-        return PagedModel.of(content, metadata, links);
+        return CollectionModel.of(
+                lobbies,
+                linkTo(methodOn(LobbyController.class).processTimeouts()).withSelfRel(),
+                linkTo(methodOn(LobbyController.class).getAllLobbies(null, null, null, null, 0, 20)).withRel("collection")
+        );
     }
 }

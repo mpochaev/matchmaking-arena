@@ -1,6 +1,10 @@
 package edu.rutmiit.pochaev.matchmakingapicontract.endpoints;
 
 import edu.rutmiit.pochaev.matchmakingapicontract.dto.MatchResponse;
+import edu.rutmiit.pochaev.matchmakingapicontract.enums.MatchMode;
+import edu.rutmiit.pochaev.matchmakingapicontract.enums.MatchStatus;
+import edu.rutmiit.pochaev.matchmakingapicontract.enums.Rank;
+import edu.rutmiit.pochaev.matchmakingapicontract.enums.Region;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,10 +24,10 @@ public interface MatchApi {
     @Operation(summary = "Получить список матчей")
     @GetMapping
     PagedModel<EntityModel<MatchResponse>> getAllMatches(
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false) String region,
-            @RequestParam(required = false) String rank,
-            @RequestParam(required = false) String mode,
+            @RequestParam(required = false) MatchStatus status,
+            @RequestParam(required = false) Region region,
+            @RequestParam(required = false) Rank rank,
+            @RequestParam(required = false) MatchMode mode,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     );

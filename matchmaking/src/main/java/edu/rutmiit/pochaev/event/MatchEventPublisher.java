@@ -28,10 +28,10 @@ public class MatchEventPublisher {
         var progress = new MatchEvent.Progress(
                 match.id(),
                 match.lobbyId(),
-                event.type(),
+                event.type().name(),
                 event.message(),
                 match.events().size(),
-                match.status()
+                match.status().name()
         );
         send(RoutingKeys.MATCH_PROGRESS, progress);
     }
@@ -42,16 +42,16 @@ public class MatchEventPublisher {
                         player.id(),
                         player.nickname(),
                         player.rating(),
-                        player.rank()
+                        player.rank().name()
                 ))
                 .toList();
 
         var event = new MatchEvent.Finished(
                 match.id(),
                 match.lobbyId(),
-                match.mode(),
-                match.region(),
-                match.rank(),
+                match.mode().name(),
+                match.region().name(),
+                match.rank().name(),
                 match.players().size(),
                 players,
                 match.winner() == null ? null : match.winner().id(),

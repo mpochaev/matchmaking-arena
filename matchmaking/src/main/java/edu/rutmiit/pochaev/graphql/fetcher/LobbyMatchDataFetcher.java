@@ -1,19 +1,19 @@
 package edu.rutmiit.pochaev.graphql.fetcher;
 
-import edu.rutmiit.pochaev.service.MatchmakingService;
 import com.netflix.graphql.dgs.DgsComponent;
 import com.netflix.graphql.dgs.DgsData;
 import com.netflix.graphql.dgs.DgsDataFetchingEnvironment;
 import edu.rutmiit.pochaev.matchmakingapicontract.dto.LobbyResponse;
 import edu.rutmiit.pochaev.matchmakingapicontract.dto.MatchResponse;
+import edu.rutmiit.pochaev.service.MatchService;
 
 @DgsComponent
 public class LobbyMatchDataFetcher {
 
-    private final MatchmakingService matchmakingService;
+    private final MatchService matchService;
 
-    public LobbyMatchDataFetcher(MatchmakingService matchmakingService) {
-        this.matchmakingService = matchmakingService;
+    public LobbyMatchDataFetcher(MatchService matchService) {
+        this.matchService = matchService;
     }
 
     @DgsData(parentType = "Lobby", field = "match")
@@ -22,6 +22,6 @@ public class LobbyMatchDataFetcher {
         if (lobby.matchId() == null) {
             return null;
         }
-        return matchmakingService.findMatchById(lobby.matchId());
+        return matchService.findMatchById(lobby.matchId());
     }
 }
