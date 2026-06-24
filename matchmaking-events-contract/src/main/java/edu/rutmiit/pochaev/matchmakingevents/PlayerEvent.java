@@ -12,4 +12,20 @@ public sealed interface PlayerEvent {
             String region,
             String rank
     ) implements PlayerEvent {}
+
+    record Updated(
+            UUID playerId,
+            String nickname,
+            int rating,
+            String region,
+            String rank
+    ) implements PlayerEvent {}
+
+    record Deleted(
+            UUID playerId,
+            String nickname,
+            int rating,
+            String region,
+            String rank
+    ) implements PlayerEvent {}
 }

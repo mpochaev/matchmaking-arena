@@ -33,6 +33,28 @@ public class PlayerEventPublisher {
         send(RoutingKeys.PLAYER_CREATED, event);
     }
 
+    public void publishUpdated(PlayerResponse player) {
+        var event = new PlayerEvent.Updated(
+                player.id(),
+                player.nickname(),
+                player.rating(),
+                player.region().name(),
+                player.rank().name()
+        );
+        send(RoutingKeys.PLAYER_UPDATED, event);
+    }
+
+    public void publishDeleted(PlayerResponse player) {
+        var event = new PlayerEvent.Deleted(
+                player.id(),
+                player.nickname(),
+                player.rating(),
+                player.region().name(),
+                player.rank().name()
+        );
+        send(RoutingKeys.PLAYER_DELETED, event);
+    }
+
     private void send(String routingKey, PlayerEvent event) {
         try {
             EventEnvelope<PlayerEvent> envelope = EventEnvelope.wrap(event, SOURCE, routingKey);

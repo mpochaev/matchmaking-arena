@@ -1,0 +1,94 @@
+# =========================
+# Java / Maven
+# =========================
+target/
+**/target/
+*.class
+
+# Maven wrapper should stay in Git
+!.mvn/wrapper/maven-wrapper.jar
+!mvnw
+!mvnw.cmd
+
+# Build / generated files
+generated-sources/
+generated-test-sources/
+dependency-reduced-pom.xml
+
+# =========================
+# IDE files
+# =========================
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+*.log.*
+hs_err_pid*
+replay_pid*
+
+# =========================
+# Runtime / temp files
+# =========================
+tmp/
+temp/
+*.tmp
+*.swp
+*.swo
+
+# =========================
+# Environment / local config
+# =========================
+.env
+.env.*
+!.env.example
+
+application-local.properties
+application-local.yml
+application-local.yaml
+
+# =========================
+# Course context / reference materials
+# =========================
+context/
+Context/
+Matchmaking Context/
+
+# =========================
+# Archives / exported builds
+# =========================
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+
+# =========================
+# Node / frontend just in case
+# =========================
+node_modules/
+dist/
+build/
+
+# =========================
+# Docker / local volumes
+# =========================
+docker-data/
+rabbitmq-data/

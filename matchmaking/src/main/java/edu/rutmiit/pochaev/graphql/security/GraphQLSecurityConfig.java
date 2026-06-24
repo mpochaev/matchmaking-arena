@@ -3,11 +3,10 @@ package edu.rutmiit.pochaev.graphql.security;
 import graphql.analysis.MaxQueryComplexityInstrumentation;
 import graphql.analysis.MaxQueryDepthInstrumentation;
 import graphql.execution.instrumentation.Instrumentation;
-import graphql.execution.instrumentation.tracing.TracingInstrumentation;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/** Простая защита GraphQL и учебная трассировка запросов. */
+/** Простая защита GraphQL от слишком глубоких и слишком широких запросов. */
 @Configuration
 public class GraphQLSecurityConfig {
 
@@ -21,8 +20,4 @@ public class GraphQLSecurityConfig {
         return new MaxQueryComplexityInstrumentation(200);
     }
 
-    @Bean
-    public Instrumentation tracingInstrumentation() {
-        return new TracingInstrumentation();
-    }
 }

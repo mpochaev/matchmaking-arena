@@ -11,6 +11,8 @@ public final class RoutingKeys {
     public static final String EXCHANGE = "matchmaking.events";
 
     public static final String PLAYER_CREATED = "player.created";
+    public static final String PLAYER_UPDATED = "player.updated";
+    public static final String PLAYER_DELETED = "player.deleted";
 
     public static final String LOBBY_CREATED = "lobby.created";
     public static final String LOBBY_PLAYER_JOINED = "lobby.player-joined";

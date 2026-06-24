@@ -149,6 +149,18 @@ input CreatePlayerInput {
     region: Region = RU
 }
 
+input UpdatePlayerInput {
+    nickname: String!
+    rating: Int!
+    region: Region!
+}
+
+input PatchPlayerInput {
+    nickname: String
+    rating: Int
+    region: Region
+}
+
 input JoinLobbyInput {
     playerId: ID!
     mode: MatchMode!
@@ -170,6 +182,8 @@ type Query {
 
 type Mutation {
     createPlayer(input: CreatePlayerInput!): Player!
+    updatePlayer(id: ID!, input: UpdatePlayerInput!): Player!
+    patchPlayer(id: ID!, input: PatchPlayerInput!): Player!
 
     """Добавляет игрока в WAITING-лобби или создает новое. Ранг берется из Player.rank."""
     joinLobby(input: JoinLobbyInput!): Lobby!

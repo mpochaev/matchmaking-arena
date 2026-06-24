@@ -140,12 +140,9 @@
 
 <script>
     const WS_URL = `ws://${window.location.host}/ws/notifications`;
-    const STORAGE_KEY = 'matchmaking.notifications';
-    const MAX_STORED_NOTIFICATIONS = 50;
-
     let ws = null;
     let reconnectAttempt = 0;
-    let notifications = loadStoredNotifications();
+    let notifications = [];
 
     const status = document.getElementById('status');
     const statusText = document.getElementById('statusText');
@@ -154,34 +151,12 @@
     const count = document.getElementById('count');
     const connectionLog = document.getElementById('connectionLog');
 
-    function loadStoredNotifications() {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) {
-            return [];
-        }
-
-        try {
-            const parsed = JSON.parse(raw);
-            return Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-            localStorage.removeItem(STORAGE_KEY);
-            return [];
-        }
-    }
-
-    function saveStoredNotifications(items) {
-        localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify(items.slice(0, MAX_STORED_NOTIFICATIONS))
-        );
-    }
-
     function updateCounter() {
         count.textContent = String(notifications.length);
         empty.style.display = notifications.length === 0 ? 'block' : 'none';
     }
 
-    function renderStoredNotifications() {
+    function renderNotifications() {
         list.innerHTML = '';
         notifications.forEach((item) => renderNotification(item, false));
         updateCounter();
@@ -239,9 +214,8 @@
     }
 
     function addNotification(data) {
-        notifications = [data, ...notifications].slice(0, MAX_STORED_NOTIFICATIONS);
-        saveStoredNotifications(notifications);
-        renderStoredNotifications();
+        notifications = [data, ...notifications];
+        renderNotifications();
     }
 
     function renderNotification(data, prepend) {
@@ -269,7 +243,6 @@
 
     function clearNotifications() {
         notifications = [];
-        localStorage.removeItem(STORAGE_KEY);
         list.innerHTML = '';
         updateCounter();
     }
@@ -290,7 +263,7 @@
             .replaceAll("'", '&#039;');
     }
 
-    renderStoredNotifications();
+    renderNotifications();
     connect();
 </script>
 </body>

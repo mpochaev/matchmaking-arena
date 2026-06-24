@@ -1,7 +1,9 @@
 package edu.rutmiit.pochaev.matchmakingapicontract.endpoints;
 
+import edu.rutmiit.pochaev.matchmakingapicontract.dto.PatchPlayerRequest;
 import edu.rutmiit.pochaev.matchmakingapicontract.dto.PlayerRequest;
 import edu.rutmiit.pochaev.matchmakingapicontract.dto.PlayerResponse;
+import edu.rutmiit.pochaev.matchmakingapicontract.dto.UpdatePlayerRequest;
 import edu.rutmiit.pochaev.matchmakingapicontract.enums.Rank;
 import edu.rutmiit.pochaev.matchmakingapicontract.enums.Region;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,7 +16,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -41,6 +45,21 @@ public interface PlayerApi {
     @Operation(summary = "Создать игрока")
     @PostMapping
     ResponseEntity<EntityModel<PlayerResponse>> createPlayer(@Valid @RequestBody PlayerRequest request);
+
+
+    @Operation(summary = "Полностью обновить игрока")
+    @PutMapping("/{id}")
+    EntityModel<PlayerResponse> updatePlayer(
+            @Parameter(description = "ID игрока") @PathVariable UUID id,
+            @Valid @RequestBody UpdatePlayerRequest request
+    );
+
+    @Operation(summary = "Частично обновить игрока")
+    @PatchMapping("/{id}")
+    EntityModel<PlayerResponse> patchPlayer(
+            @Parameter(description = "ID игрока") @PathVariable UUID id,
+            @Valid @RequestBody PatchPlayerRequest request
+    );
 
     @Operation(summary = "Удалить игрока")
     @DeleteMapping("/{id}")

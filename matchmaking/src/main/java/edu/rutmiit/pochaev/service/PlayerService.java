@@ -3,8 +3,10 @@ package edu.rutmiit.pochaev.service;
 import edu.rutmiit.pochaev.config.RabbitMQConfig;
 import edu.rutmiit.pochaev.event.PlayerEventPublisher;
 import edu.rutmiit.pochaev.matchmakingapicontract.dto.PagedResponse;
+import edu.rutmiit.pochaev.matchmakingapicontract.dto.PatchPlayerRequest;
 import edu.rutmiit.pochaev.matchmakingapicontract.dto.PlayerRequest;
 import edu.rutmiit.pochaev.matchmakingapicontract.dto.PlayerResponse;
+import edu.rutmiit.pochaev.matchmakingapicontract.dto.UpdatePlayerRequest;
 import edu.rutmiit.pochaev.matchmakingapicontract.enums.LobbyStatus;
 import edu.rutmiit.pochaev.matchmakingapicontract.enums.MatchStatus;
 import edu.rutmiit.pochaev.matchmakingapicontract.enums.Rank;
@@ -104,8 +106,46 @@ public class PlayerService {
         return createPlayerInternal(request, true);
     }
 
+    public PlayerResponse updatePlayer(UUID id, UpdatePlayerRequest request) {
+        PlayerState existing = playerState(id);
+        PlayerState updated = new PlayerState(
+                existing.id(),
+                request.nickname(),
+                request.rating(),
+                request.region(),
+                rankByRating(request.rating()),
+                existing.createdAt()
+        );
+        storage.players.put(id, updated);
+
+        PlayerResponse response = toPlayerResponse(updated);
+        playerEventPublisher.publishUpdated(response);
+        return response;
+    }
+
+    public PlayerResponse patchPlayer(UUID id, PatchPlayerRequest request) {
+        PlayerState existing = playerState(id);
+        String nickname = request.nickname() != null ? request.nickname() : existing.nickname();
+        int rating = request.rating() != null ? request.rating() : existing.rating();
+        Region region = request.region() != null ? request.region() : existing.region();
+
+        PlayerState updated = new PlayerState(
+                existing.id(),
+                nickname,
+                rating,
+                region,
+                rankByRating(rating),
+                existing.createdAt()
+        );
+        storage.players.put(id, updated);
+
+        PlayerResponse response = toPlayerResponse(updated);
+        playerEventPublisher.publishUpdated(response);
+        return response;
+    }
+
     public void deletePlayer(UUID id) {
-        playerState(id);
+        PlayerState player = playerState(id);
 
         boolean inWaitingLobby = storage.lobbies.values().stream()
                 .anyMatch(lobby -> lobby.getStatus() == LobbyStatus.WAITING && lobby.getPlayerIds().contains(id));
@@ -119,7 +159,9 @@ public class PlayerService {
             throw new InvalidLobbyOperationException("Нельзя удалить игрока, который находится в активном матче");
         }
 
+        PlayerResponse deletedPlayer = toPlayerResponse(player);
         storage.players.remove(id);
+        playerEventPublisher.publishDeleted(deletedPlayer);
     }
 
     public PlayerState playerState(UUID id) {

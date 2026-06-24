@@ -2,8 +2,10 @@ package edu.rutmiit.pochaev.controller;
 
 import edu.rutmiit.pochaev.assembler.PlayerModelAssembler;
 import edu.rutmiit.pochaev.matchmakingapicontract.dto.PagedResponse;
+import edu.rutmiit.pochaev.matchmakingapicontract.dto.PatchPlayerRequest;
 import edu.rutmiit.pochaev.matchmakingapicontract.dto.PlayerRequest;
 import edu.rutmiit.pochaev.matchmakingapicontract.dto.PlayerResponse;
+import edu.rutmiit.pochaev.matchmakingapicontract.dto.UpdatePlayerRequest;
 import edu.rutmiit.pochaev.matchmakingapicontract.endpoints.PlayerApi;
 import edu.rutmiit.pochaev.matchmakingapicontract.enums.Rank;
 import edu.rutmiit.pochaev.matchmakingapicontract.enums.Region;
@@ -56,6 +58,17 @@ public class PlayerController implements PlayerApi {
         return ResponseEntity
                 .created(model.getRequiredLink("self").toUri())
                 .body(model);
+    }
+
+
+    @Override
+    public EntityModel<PlayerResponse> updatePlayer(UUID id, UpdatePlayerRequest request) {
+        return playerModelAssembler.toModel(playerService.updatePlayer(id, request));
+    }
+
+    @Override
+    public EntityModel<PlayerResponse> patchPlayer(UUID id, PatchPlayerRequest request) {
+        return playerModelAssembler.toModel(playerService.patchPlayer(id, request));
     }
 
     @Override

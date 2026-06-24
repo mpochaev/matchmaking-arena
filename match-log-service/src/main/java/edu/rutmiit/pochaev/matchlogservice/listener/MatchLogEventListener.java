@@ -73,6 +73,16 @@ public class MatchLogEventListener {
                 yield String.format("Игрок создан: %s (рейтинг=%d, регион=%s, ранг=%s)",
                         e.nickname(), e.rating(), e.region(), e.rank());
             }
+            case RoutingKeys.PLAYER_UPDATED -> {
+                PlayerEvent.Updated e = jsonMapper.treeToValue(payloadNode, PlayerEvent.Updated.class);
+                yield String.format("Игрок обновлен: %s (id=%s, рейтинг=%d, регион=%s, ранг=%s)",
+                        e.nickname(), e.playerId(), e.rating(), e.region(), e.rank());
+            }
+            case RoutingKeys.PLAYER_DELETED -> {
+                PlayerEvent.Deleted e = jsonMapper.treeToValue(payloadNode, PlayerEvent.Deleted.class);
+                yield String.format("Игрок удален: %s (id=%s, рейтинг=%d, регион=%s, ранг=%s)",
+                        e.nickname(), e.playerId(), e.rating(), e.region(), e.rank());
+            }
             case RoutingKeys.LOBBY_CREATED -> {
                 LobbyEvent.Created e = jsonMapper.treeToValue(payloadNode, LobbyEvent.Created.class);
                 yield String.format("Лобби создано: %s/%s/%s, минимум игроков: %d",

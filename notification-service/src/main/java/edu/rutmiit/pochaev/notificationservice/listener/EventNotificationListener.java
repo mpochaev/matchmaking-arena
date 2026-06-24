@@ -75,6 +75,8 @@ public class EventNotificationListener {
     private String buildTitle(String eventType) {
         return switch (eventType) {
             case RoutingKeys.PLAYER_CREATED -> "Игрок создан";
+            case RoutingKeys.PLAYER_UPDATED -> "Игрок обновлен";
+            case RoutingKeys.PLAYER_DELETED -> "Игрок удален";
             case RoutingKeys.LOBBY_CREATED -> "Лобби создано";
             case RoutingKeys.LOBBY_PLAYER_JOINED -> "Игрок вошел в лобби";
             case RoutingKeys.LOBBY_FORMED -> "Лобби сформировано";
@@ -92,6 +94,16 @@ public class EventNotificationListener {
                 case RoutingKeys.PLAYER_CREATED -> {
                     PlayerEvent.Created e = jsonMapper.treeToValue(payload, PlayerEvent.Created.class);
                     yield "%s создан, рейтинг=%d, регион=%s, ранг=%s"
+                            .formatted(e.nickname(), e.rating(), e.region(), e.rank());
+                }
+                case RoutingKeys.PLAYER_UPDATED -> {
+                    PlayerEvent.Updated e = jsonMapper.treeToValue(payload, PlayerEvent.Updated.class);
+                    yield "%s обновлен, рейтинг=%d, регион=%s, ранг=%s"
+                            .formatted(e.nickname(), e.rating(), e.region(), e.rank());
+                }
+                case RoutingKeys.PLAYER_DELETED -> {
+                    PlayerEvent.Deleted e = jsonMapper.treeToValue(payload, PlayerEvent.Deleted.class);
+                    yield "%s удален, рейтинг=%d, регион=%s, ранг=%s"
                             .formatted(e.nickname(), e.rating(), e.region(), e.rank());
                 }
                 case RoutingKeys.LOBBY_CREATED -> {
@@ -143,7 +155,7 @@ public class EventNotificationListener {
 
     private String resolveIcon(String eventType) {
         return switch (eventType) {
-            case RoutingKeys.PLAYER_CREATED -> "player";
+            case RoutingKeys.PLAYER_CREATED, RoutingKeys.PLAYER_UPDATED, RoutingKeys.PLAYER_DELETED -> "player";
             case RoutingKeys.LOBBY_CREATED, RoutingKeys.LOBBY_PLAYER_JOINED,
                  RoutingKeys.LOBBY_FORMED, RoutingKeys.LOBBY_DISBANDED -> "lobby";
             case RoutingKeys.MATCH_PROGRESS, RoutingKeys.MATCH_FINISHED -> "match";
@@ -156,7 +168,7 @@ public class EventNotificationListener {
         return switch (eventType) {
             case RoutingKeys.MATCH_FINISHED, RoutingKeys.MATCH_ENRICHED -> "success";
             case RoutingKeys.MATCH_PROGRESS -> "info";
-            case RoutingKeys.LOBBY_DISBANDED -> "warning";
+            case RoutingKeys.LOBBY_DISBANDED, RoutingKeys.PLAYER_DELETED -> "warning";
             default -> "info";
         };
     }
